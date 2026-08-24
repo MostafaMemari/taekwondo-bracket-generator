@@ -1,32 +1,54 @@
-# React + TypeScript + Vite
+# تخته قرعه کیوروگی — Taekwondo Bracket Generator
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A fully local (no backend) React + Vite + TypeScript app that turns an Excel roster into
+single-elimination brackets per (age category × weight category), with manual drag-and-drop
+correction and print-ready PDF export. All UI text is Persian; the layout is RTL.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev        # start dev server
+npm run build      # type-check + production build
+npm run preview    # serve the production build
+npm run test       # core + end-to-end logic checks (node, no browser)
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`node scripts/make-sample-excel.mjs` regenerates `public/sample-registration.xlsx`.
+Open the app with `#pdf-preview` to inspect all print sheets on screen.
+
+## Architecture
+
+```
+src/
+  config/
+    excelSchema.ts          Excel column mapping — edit here when columns change
+    tournamentRules.ts      swappable rules (bye tie-break, format)
+  core/                     pure domain logic, zero React
+    types.ts                Participant, CategoryGroup, BracketStructure, GroupDraw...
+    excel/parseRosterWorkbook.ts
+    grouping/groupByCategory.ts
+    bracket/
+      buildBracketTree.ts         recursive ceil/floor binary split
+      byeStrategy.ts              assignByes (+ resolveByePriorityTie hook)
+      coachSeparationStrategy.ts  distributeByCoach (spread same-coach athletes)
+      generateGroupDraw.ts        orchestration: byes → separation → slots
+      applySlotSwap.ts            drag-and-drop swap semantics
+      layout.ts                   pure geometry shared by UI canvas and PDF sheet
+  store/tournamentStore.ts  zustand + localStorage persistence, undo history
+  features/
+    import/   upload, preview table, validation report
+    groups/   group cards (belt-stripe identity)
+    bracket/  dnd-kit canvas with connectors, undo, reset
+    pdf/      print-styled sheets → html2canvas + jsPDF
+```
+
+## Extending
+
+- **New Excel columns**: edit `src/config/excelSchema.ts` only.
+- **Different bye rule / tie-break**: replace `resolveByePriorityTie` or `assignByes`
+  in `src/core/bracket/byeStrategy.ts`; wire via `src/config/tournamentRules.ts`.
+- **Another rule layer** (club, region, seeding): add a strategy module next to
+  `coachSeparationStrategy.ts` and compose it in `generateGroupDraw.ts`.
+- **Repechage or other formats**: add a module under `src/core/bracket/`; the UI consumes
+  `BracketStructure` + `SlotAssignments`, not a specific format.
