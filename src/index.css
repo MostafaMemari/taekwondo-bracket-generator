@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+/*
+  Kyorugi Draw Board — design tokens
+  Palette is semantic: chung/hong are the two taekwondo corner colours and
+  encode which half of the draw a slot sits in. Everything else stays quiet.
+*/
+@theme {
+  --color-paper: #edeff1;
+  --color-surface: #ffffff;
+  --color-ink: #15181d;
+  --color-ink-muted: #5c6572;
+  --color-line: #dbe0e6;
+  --color-chung: #1259c3;
+  --color-chung-soft: #e3ecfb;
+  --color-hong: #c81e2e;
+  --color-hong-soft: #fbe7e9;
+  --color-gold: #9a7b1e;
+
+  --font-display: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+@layer base {
+  html {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-chung);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  ::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #c3cad2;
+    border-radius: 8px;
+    border: 2px solid var(--color-paper);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .display-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  .eyebrow {
+    font-family: var(--font-data);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-muted);
+  }
+  .mono-num {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: box-shadow 120ms ease, transform 120ms ease, border-color 120ms ease;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: #b9c2cc;
+    box-shadow: 0 1px 3px rgba(21, 24, 29, 0.12);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    color: #fff;
+    border-color: var(--color-ink);
+  }
+  .btn-primary:hover:not(:disabled) {
+    border-color: var(--color-ink);
+    background: #23282f;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--color-surface);
+  }
+
+  /* Bracket board ------------------------------------------------------- */
+  .board-mat {
+    background-color: var(--color-paper);
+    background-image:
+      linear-gradient(rgba(21, 24, 29, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(21, 24, 29, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .ghost-numeral {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 200px;
+    line-height: 1;
+    color: rgba(21, 24, 29, 0.04);
+    user-select: none;
+    pointer-events: none;
+  }
+  .slot-card {
+    transition: box-shadow 140ms ease, transform 140ms ease;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .slot-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 10px rgba(21, 24, 29, 0.14);
+    }
+    .slot-card--dragging {
+      opacity: 0.35;
+    }
+  }
+  .slot-card--over {
+    outline: 2px dashed var(--color-chung);
+    outline-offset: 2px;
+  }
+
+  /* Offscreen stage for PDF capture ------------------------------------- */
+  .pdf-stage {
+    position: fixed;
+    left: -12000px;
+    top: 0;
+    z-index: -1;
+  }
+}
+
+/* ==========================================================================
+   Print sheet — captured by html2canvas, so ONLY hex/rgba colors here
+   (Tailwind v4 defaults emit oklch which html2canvas cannot parse).
+   ========================================================================== */
+.print-sheet {
+  width: 1122px;
+  height: 786px; /* A4 landscape @ ~96dpi with margins */
+  background: #ffffff;
+  color: #15181d;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+}
+.print-sheet__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 3px solid #15181d;
+  padding-bottom: 10px;
+}
+.print-sheet__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.print-sheet__brandmark {
+  width: 26px;
+  height: 26px;
+}
+.print-sheet__title {
+  font-size: 30px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  margin-top: 4px;
+}
+.print-sheet__meta {
+  text-align: right;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #444a52;
+  line-height: 1.55;
+}
+.print-sheet__body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.print-sheet__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-top: 1px solid #b9bfc7;
+  padding-top: 8px;
+  font-size: 11px;
+  color: #444a52;
+}
+.print-sheet__sig {
+  font-family: Consolas, monospace;
+  color: #444a52;
+}
+.print-sheet__sigline {
+  display: inline-block;
+  width: 180px;
+  border-bottom: 1px solid #15181d;
+  height: 14px;
+}
