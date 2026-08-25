@@ -1,8 +1,9 @@
-import { Swords } from 'lucide-react'
+import { Swords, Trophy } from 'lucide-react'
 import { computeBracketLayout, printLayoutDims } from '../../core/bracket/layout.ts'
 import type { GroupDraw, Participant, SlotOccupant } from '../../core/types.ts'
 import { beltColorFor } from '../../lib/beltColor.ts'
 import { groupTitle, toFaDigits } from '../../lib/formatFa.ts'
+import { findSoloParticipant } from '../../lib/soloDraw.ts'
 import { matchLabel, roundLabel } from '../../lib/roundLabels.ts'
 
 export const sheetWidth = 1120
@@ -117,25 +118,7 @@ export function BracketSheet({
 
       <main style={{ padding: '16px 40px 8px', marginInlineStart: 10 }}>
         {draw.structure.roundCount === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 16,
-              padding: '48px 0',
-            }}
-          >
-            <p style={{ margin: 0, fontSize: 14, color: '#5b6b82' }}>
-              این گروه فقط یک شرکت‌کننده دارد و مسابقه‌ای برگزار نمی‌شود.
-            </p>
-            <div style={{ width: 320, height: printLayoutDims.cardHeight }}>
-              <SheetSlotContent
-                occupant={draw.assignments[draw.structure.leaves[0].slotId]}
-                participantsById={participantsById}
-              />
-            </div>
-          </div>
+          <SoloWinnerStatement solo={findSoloParticipant(draw, participantsById)} />
         ) : (
           <div style={{ width: bodyWidth, height: layout.height * scale }}>
           <div
@@ -255,6 +238,65 @@ export function BracketSheet({
         </span>
         <span>تولیدشده با تخته قرعه کیوروگی</span>
       </footer>
+    </div>
+  )
+}
+
+function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 10,
+        padding: '42px 0',
+      }}
+    >
+      <span
+        style={{
+          width: 58,
+          height: 58,
+          borderRadius: '50%',
+          backgroundColor: '#fdf7e7',
+          border: '2px solid #c9971c',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Trophy size={26} color="#a87b12" />
+      </span>
+      {solo ? (
+        <>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: '#5b6b82' }}>
+            تنها شرکت‌کنندهٔ این دستهٔ وزنی
+          </p>
+          <p style={{ margin: 0, fontFamily: 'Lalezar, Vazirmatn, sans-serif', fontSize: 32, lineHeight: 1.25, color: '#101d31' }}>
+            {solo.fullName}
+          </p>
+          <p style={{ margin: 0, fontSize: 13.5, color: '#5b6b82' }}>مربی: {solo.coachName}</p>
+        </>
+      ) : (
+        <p style={{ margin: 0, fontSize: 14, color: '#5b6b82' }}>این گروه بدون شرکت‌کننده است.</p>
+      )}
+      <p
+        style={{
+          margin: '10px 0 0',
+          maxWidth: 660,
+          fontSize: 13.5,
+          lineHeight: 1.9,
+          textAlign: 'center',
+          backgroundColor: '#fdf7e7',
+          border: '1px solid #e3cf9a',
+          borderRadius: 8,
+          padding: '10px 20px',
+          color: '#27405f',
+        }}
+      >
+        تنها شرکت‌کنندهٔ این دستهٔ وزنی همین یک نفر است؛ بدون برگزاری مسابقه، به‌طور خودکار در رتبهٔ
+        نخست این وزن قرار می‌گیرد.
+      </p>
     </div>
   )
 }

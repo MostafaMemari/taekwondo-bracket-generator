@@ -1,15 +1,17 @@
 import { useEffect } from 'react'
-import { ChevronRight, Info, Printer, RotateCcw, Undo2 } from 'lucide-react'
+import { ChevronRight, Info, Printer, RotateCcw, Trophy, Undo2 } from 'lucide-react'
 import { useTournament } from '../../store/tournamentStore.ts'
 import { Button } from '../../components/Button.tsx'
 import { beltColorFor } from '../../lib/beltColor.ts'
 import { groupTitle } from '../../lib/formatFa.ts'
+import { findSoloParticipant } from '../../lib/soloDraw.ts'
 import { BracketCanvas } from './BracketCanvas.tsx'
 
 export function BracketPage() {
   const draw = useTournament((state) =>
     state.selectedGroupId ? state.draws[state.selectedGroupId] : undefined,
   )
+  const participants = useTournament((state) => state.participants)
   const openGroups = useTournament((state) => state.openGroups)
   const undoMove = useTournament((state) => state.undoMove)
   const resetGroupLayout = useTournament((state) => state.resetGroupLayout)
@@ -34,6 +36,13 @@ export function BracketPage() {
 
   const belt = beltColorFor(draw.groupId)
   const canUndo = draw.history.length > 0
+  const solo =
+    draw.structure.roundCount === 0
+      ? findSoloParticipant(
+          draw,
+          new Map(participants.map((participant) => [participant.id, participant])),
+        )
+      : null
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
@@ -72,9 +81,23 @@ export function BracketPage() {
       </header>
 
       {draw.structure.roundCount === 0 ? (
-        <p className="rounded-xl border border-line bg-surface px-6 py-10 text-center text-sm text-muted">
-          این گروه فقط یک شرکت‌کننده دارد و قرعه‌ای برای آن ساخته نمی‌شود.
-        </p>
+        <div className="flex flex-col items-center gap-4 rounded-xl border border-line bg-surface px-6 py-14 text-center">
+          <span className="flex size-12 items-center justify-center rounded-full bg-turf">
+            <Trophy size={24} className="text-mat-600" />
+          </span>
+          {solo ? (
+            <>
+              <p className="font-display text-3xl text-ink-900">{solo.fullName}</p>
+              <p className="text-sm text-muted">مربی: {solo.coachName}</p>
+            </>
+          ) : (
+            <p className="text-sm font-bold text-ink-900">این گروه بدون شرکت‌کننده است.</p>
+          )}
+          <p className="max-w-md text-sm leading-7 text-ink-800">
+            تنها شرکت‌کنندهٔ این دستهٔ وزنی همین یک نفر است؛ بدون برگزاری مسابقه، به‌طور خودکار در
+            رتبهٔ نخست این وزن قرار می‌گیرد.
+          </p>
+        </div>
       ) : (
         <>
           <p className="mb-4 flex items-center gap-2 text-xs leading-5 text-muted">
