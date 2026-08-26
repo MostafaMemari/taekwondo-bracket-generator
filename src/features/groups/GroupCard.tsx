@@ -1,19 +1,19 @@
-import { ChevronLeft, UserCheck } from 'lucide-react'
-import type { GroupDraw, Participant } from '../../core/types.ts'
-import { beltColorFor } from '../../lib/beltColor.ts'
-import { toFaDigits } from '../../lib/formatFa.ts'
+import { ChevronLeft, UserCheck } from "lucide-react";
+import type { GroupDraw, Participant } from "../../core/types.ts";
+import { beltColorFor } from "../../lib/beltColor.ts";
+import { toFaDigits } from "../../lib/formatFa.ts";
 
 interface GroupCardProps {
-  draw: GroupDraw
-  solo?: Participant
-  onOpen: () => void
+  draw: GroupDraw;
+  solo?: Participant;
+  onOpen: () => void;
 }
 
 export function GroupCard({ draw, solo, onOpen }: GroupCardProps) {
-  const participantCount = solo ? 1 : Object.keys(draw.assignments).length
-  const byeCount = draw.structure.byeSlotIds.length
-  const matchCount = Math.max(0, participantCount - 1)
-  const belt = beltColorFor(draw.groupId)
+  const participantCount = solo ? 1 : Object.keys(draw.assignments).length;
+  const byeCount = draw.structure.byeSlotIds.length;
+  const matchCount = Math.max(0, participantCount - 1);
+  const belt = beltColorFor(draw.groupId);
 
   return (
     <button
@@ -23,7 +23,7 @@ export function GroupCard({ draw, solo, onOpen }: GroupCardProps) {
       <span
         aria-hidden
         className="absolute inset-y-0 start-0 w-1.5"
-        style={{ backgroundColor: belt.hex, boxShadow: belt.needsBorder ? 'inset -1px 0 0 #d8dfea' : undefined }}
+        style={{ backgroundColor: belt.hex, boxShadow: belt.needsBorder ? "inset -1px 0 0 #d8dfea" : undefined }}
       />
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -41,21 +41,17 @@ export function GroupCard({ draw, solo, onOpen }: GroupCardProps) {
             تنها شرکت‌کنندهٔ این وزن
           </p>
           <p className="mt-1 text-sm font-bold text-ink-900">{solo.fullName}</p>
-          <p className="mt-0.5 text-xs text-muted">
-            مربی: {solo.coachName} • بدون مسابقه، صدرنشین خودکار
-          </p>
+          <p className="mt-0.5 text-xs text-muted">مربی: {solo.coachName} • بدون مسابقه، صدرنشین خودکار</p>
         </div>
       ) : (
         <>
-          <p className="mt-4 text-sm font-bold text-ink-900">
-            {toFaDigits(participantCount)} شرکت‌کننده
-          </p>
+          <p className="mt-4 text-sm font-bold text-ink-900">{toFaDigits(participantCount)} شرکت‌کننده</p>
           <p className="mt-1 text-xs text-muted">
             {toFaDigits(matchCount)} مسابقه
-            {byeCount > 0 && <> • {toFaDigits(byeCount)} استراحت (بای)</>}
+            {byeCount > 0 && <> • {toFaDigits(byeCount)} استراحت </>}
           </p>
         </>
       )}
     </button>
-  )
+  );
 }
