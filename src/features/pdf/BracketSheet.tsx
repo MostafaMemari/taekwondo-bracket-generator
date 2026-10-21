@@ -128,7 +128,7 @@ export function BracketSheet({
   const chipScale = matchChipFactor(matchChipSize);
   // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
   const showChampion = useTournament((state) => state.showChampion);
-  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ وسط چین ساده و ردیف های بی حاشیه)
+  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (وسط چین با کادرهای نازک و ردیف های کادردار)
   const sheetLayout = useTournament((state) => state.sheetLayout);
   const modern = sheetLayout === "modern";
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
@@ -225,10 +225,11 @@ export function BracketSheet({
     return modern ? renderModernHeader() : renderClassicHeader();
   }
 
-  /** سربرگ طرح مدرن — عمدا خلوت: نه ریبون، نه خط تزئینی، نه پیل و کادر.
-   *  یک ستون وسط چین ساده: لوگوی بدون کاشی در لبه، عنوان، زیرعنوان، بج ها
-   *  متن ساده (فقط زمین و ساعت پر می گیرند تا از دور دیده شوند) و آمار به
-   *  شکل یک خط متن — همه رنگ ها از همان تم جدول می آید */
+  /** سربرگ طرح مدرن — متعادل: وسط چین و باز، اما با کادرهای نازک تا برگه
+   *  بی شخصیت نماند (بازخورد کاربر: «نه شلوغی نه خلوتی — یذره کادر بده»).
+   *  جداکننده نازک زیر سربرگ (در برابر خط پهن کلاسیک)، عنوان وزن در چیپ
+   *  کم رنگ، آمار در یک کادر نازک — زمین/ساعت مثل قبل پر می گیرند تا از دور
+   *  دیده شوند؛ همه رنگ ها از همان تم جدول می آید */
   function renderModernHeader() {
     const participantCount = draw.group.participantIds.length;
     const restCount = draw.structure.restSlotIds.length;
@@ -245,10 +246,13 @@ export function BracketSheet({
           alignItems: "center",
           justifyContent: "center",
           gap: 2,
-          padding: `4px ${SHEET_PAD_X}px 6px`,
+          padding: `3px ${SHEET_PAD_X}px 5px`,
+          // جداکننده نازک و ملایم — امضای «کادر دار اما خلوتی» مدرن؛ خط پهن
+          // تیره زیر سربرگ اختصاصی طرح کلاسیک می ماند
+          borderBottom: `1px solid ${theme.statBorder}`,
         }}
       >
-        {/* لوگو بدون کاشی و کادر — لبه شروع سربرگ، وسط چین بودن بقیه را به هم نمی زند */}
+        {/* لوگو بدون کاشی — لبه شروع سربرگ، وسط چین بودن بقیه را به هم نمی زند */}
         {meta.logoDataUrl && (
           <img
             src={meta.logoDataUrl}
@@ -258,8 +262,8 @@ export function BracketSheet({
               insetInlineStart: SHEET_PAD_X,
               top: "50%",
               transform: "translateY(-50%)",
-              width: 64,
-              height: 64,
+              width: 62,
+              height: 62,
               objectFit: "contain",
             }}
           />
@@ -267,7 +271,7 @@ export function BracketSheet({
         <h1
           style={{
             fontFamily: "Lalezar, Vazirmatn, sans-serif",
-            fontSize: 28,
+            fontSize: 26,
             lineHeight: 1.15,
             margin: 0,
             whiteSpace: "nowrap",
@@ -283,8 +287,8 @@ export function BracketSheet({
         {meta.subtitle && (
           <p
             style={{
-              fontSize: 12,
-              lineHeight: 1.3,
+              fontSize: 11.5,
+              lineHeight: 1.2,
               color: theme.subtitleText,
               margin: 0,
               whiteSpace: "nowrap",
@@ -297,7 +301,8 @@ export function BracketSheet({
             {meta.subtitle}
           </p>
         )}
-        {/* بج ها متن ساده — وزن و کمربند بی کادر؛ فقط زمین و ساعت پر می گیرند */}
+        {/* بج ها — عنوان وزن در چیپ کم رنگ کادردار؛ کمربند متن ساده می ماند؛
+            زمین و ساعت پر می گیرند تا از دور دیده شوند */}
         <p
           style={{
             display: "flex",
@@ -309,7 +314,18 @@ export function BracketSheet({
             overflow: "hidden",
           }}
         >
-          <span style={{ fontSize: 15, fontWeight: 700, color: theme.titleText }}>
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              lineHeight: 1.2,
+              color: theme.chipText,
+              backgroundColor: theme.chipBg,
+              border: `1px solid ${theme.chipBorder}`,
+              borderRadius: 8,
+              padding: "2px 14px 3px",
+            }}
+          >
             {renderWeightTitle(meta.sheetTitleFormat, {
               ageCategory: draw.group.ageCategory,
               weightCategory: draw.group.weightCategory,
@@ -317,7 +333,7 @@ export function BracketSheet({
             })}
           </span>
           {beltLabel && (
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: theme.subtitleText }}>
+            <span style={{ fontSize: 12, lineHeight: 1.2, fontWeight: 600, color: theme.subtitleText }}>
               کمربند {beltLabel}
             </span>
           )}
@@ -325,13 +341,13 @@ export function BracketSheet({
             <span
               style={{
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: 16,
+                fontSize: 15.5,
                 lineHeight: 1,
                 letterSpacing: 0.5,
                 color: theme.matBadgeText,
                 backgroundColor: theme.matBadgeBg,
                 borderRadius: 8,
-                padding: "4px 14px 6px",
+                padding: "2.5px 13px 4.5px",
               }}
             >
               {matLabel}
@@ -341,27 +357,31 @@ export function BracketSheet({
             <span
               style={{
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: 16,
+                fontSize: 15.5,
                 lineHeight: 1,
                 letterSpacing: 0.5,
                 color: theme.timeBadgeText,
                 backgroundColor: theme.timeBadgeBg,
                 borderRadius: 8,
-                padding: "3px 14px 5px",
+                padding: "2px 13px 4px",
               }}
             >
               ساعت {toFaDigits(attendTime)}
             </span>
           )}
         </p>
-        {/* آمار — یک خط متن ساده، بدون جعبه و پیل */}
+        {/* آمار — یک خط متن داخل کادر نازک؛ همسایه امضای جعبه آمار کلاسیک اما خیلی سبک تر */}
         <p
           style={{
             margin: 0,
-            fontSize: 11.5,
+            fontSize: 11,
+            lineHeight: 1.2,
             fontWeight: 500,
             color: theme.statLabel,
             whiteSpace: "nowrap",
+            border: `1px solid ${theme.statBorder}`,
+            borderRadius: 8,
+            padding: "2px 12px 3px",
           }}
         >
           شرکت کننده {toFaDigits(participantCount)} · مسابقه {toFaDigits(realMatchCount(draw))} · استراحت {toFaDigits(restCount)}
@@ -627,6 +647,7 @@ export function BracketSheet({
                 match={match}
                 roundCount={draw.structure.roundCount}
                 dims={dims}
+                design={sheetLayout}
                 renderLeaf={(leaf, side) =>
                   renderLeaf(leaf, side, dims, match, barSideForMatch(match, layout.width))
                 }

@@ -1,6 +1,6 @@
-/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن خلوت) — تعویض از تنظیمات، سربرگ
-   وسط چین ساده و ردیف های بی حاشیه مدرن، سازگاری تم شبانه با طرح مدرن، و
-   برگشت بی رگرسیون به کلاسیک */
+/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن متعادل) — تعویض از تنظیمات، سربرگ
+   وسط چین با جداکننده نازک و ردیف های کادردار مدرن، سازگاری تم شبانه با طرح
+   مدرن، و برگشت بی رگرسیون به کلاسیک */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
@@ -84,7 +84,7 @@ check(
   (await firstSheet.getAttribute('data-sheet-layout')) === 'modern',
 )
 
-/* ————— امضاهای بصری طرح مدرن خلوت ————— */
+/* ————— امضاهای بصری طرح مدرن متعادل — کادرهای نازک، بدون شلوغی ————— */
 const modern = await page.evaluate(() => {
   const sheet = document.querySelector('#pdf-sheet-1000')
   if (!sheet) return null
@@ -100,13 +100,34 @@ const modern = await page.evaluate(() => {
     const kid = row.firstElementChild
     return kid && kid.getAttribute('aria-hidden') === 'true' && kid.getBoundingClientRect().width < 6
   }).length
+  // کادر نازک ۱px دور ردیف ها — امضای «یذره کادر» مدرن متعادل
+  const framedRows = rows.filter((row) => {
+    const style = getComputedStyle(row)
+    return (
+      parseFloat(style.borderTopWidth) === 1 &&
+      parseFloat(style.borderBottomWidth) === 1 &&
+      parseFloat(style.borderInlineStartWidth) === 1 &&
+      parseFloat(style.borderInlineEndWidth) === 1
+    )
+  }).length
   const pills = [...sheet.querySelectorAll('header span')].filter((span) => {
     const style = getComputedStyle(span)
     return style.borderTopLeftRadius === '999px' && span.textContent?.trim().length > 0
   }).length
-  const statLine = [...(header?.querySelectorAll('p') ?? [])].some((p) =>
-    p.textContent?.includes('شرکت کننده') && p.textContent?.includes('·'),
+  const statLine = [...(header?.querySelectorAll('p') ?? [])].find(
+    (p) => p.textContent?.includes('شرکت کننده') && p.textContent?.includes('·'),
   )
+  const statFrame = statLine ? parseFloat(getComputedStyle(statLine).borderTopWidth) : -1
+  // چیپ عنوان وزن — تنها اسپانی که کادر نازک ۱px و گوشه ۸ دارد (زمین/ساعت پر
+  // می گیرند و خط ندارند؛ کمربند بی کادر است)
+  const framedChips = [...(header?.querySelectorAll('span') ?? [])].filter((span) => {
+    const style = getComputedStyle(span)
+    return (
+      parseFloat(style.borderTopWidth) === 1 &&
+      parseFloat(style.borderTopLeftRadius) === 8 &&
+      (span.textContent?.trim().length ?? 0) > 0
+    )
+  }).length
   const sheetRect = sheet.getBoundingClientRect()
   return {
     firstIsHeader: first?.tagName === 'HEADER',
@@ -114,8 +135,12 @@ const modern = await page.evaluate(() => {
     headerRuleWidth: headerStyle ? parseFloat(headerStyle.borderBottomWidth) : -1,
     rowWithTopStripe,
     sideBarRows,
+    framedRows,
+    rowCount: rows.length,
     pills,
-    statLine,
+    statLine: Boolean(statLine),
+    statFrame,
+    framedChips,
     sheetHeight: sheetRect.height,
     overflow: sheet.scrollHeight - sheet.clientHeight,
   }
@@ -124,13 +149,29 @@ check('modern: geometry measurable', Boolean(modern))
 if (modern) {
   check('modern: no ribbon strip — header is the first element', modern.firstIsHeader)
   check('modern: header renders', modern.hasHeader)
-  check(`modern: no rule under header (${modern.headerRuleWidth}px)`, modern.headerRuleWidth === 0)
-  check('modern: rows are frameless tint — no top stripes', !modern.rowWithTopStripe)
+  check(
+    `modern: thin soft rule under header (${modern.headerRuleWidth}px — not the heavy classic one)`,
+    modern.headerRuleWidth > 0 && modern.headerRuleWidth < 2,
+  )
+  check('modern: rows carry no thick top stripes', !modern.rowWithTopStripe)
   check(`modern: no mirrored side bars left in rows (${modern.sideBarRows})`, modern.sideBarRows === 0)
+  check(
+    `modern: rows sit inside thin 1px frames (${modern.framedRows}/${modern.rowCount})`,
+    modern.rowCount > 0 && modern.framedRows === modern.rowCount,
+  )
   check(`modern: no capsule pills in header (${modern.pills})`, modern.pills === 0)
-  check('modern: stats render as one plain text line', modern.statLine)
-  check(`modern: sheet still A4 fixed (${modern.sheetHeight}px, overflow ${modern.overflow}px)`,
-    Math.abs(modern.sheetHeight - 770) <= 1 && modern.overflow <= 1)
+  check(
+    `modern: stats line framed with a thin border (${modern.statFrame}px)`,
+    modern.statLine && modern.statFrame === 1,
+  )
+  check(
+    `modern: weight title sits in a thin-framed chip (${modern.framedChips} framed chip)`,
+    modern.framedChips >= 1,
+  )
+  check(
+    `modern: sheet still A4 fixed (${modern.sheetHeight}px, overflow ${modern.overflow}px)`,
+    Math.abs(modern.sheetHeight - 770) <= 1 && modern.overflow <= 1,
+  )
 }
 await page.screenshot({ path: 'scripts/t30/modern-sheet.png' })
 

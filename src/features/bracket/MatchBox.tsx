@@ -3,11 +3,15 @@ import type { LayoutMatch, LayoutDims, PlanLeaf, SlotSide } from '../../core/bra
 import { BRONZE_HEADER_HEIGHT } from '../../core/bracket/layout.ts'
 import { LoserRow, PositionRow } from './SlotRows.tsx'
 import { useTableTheme } from '../../lib/tableThemeContext.ts'
+import type { SheetLayoutId } from '../../lib/sheetLayouts.ts'
 
 interface MatchBoxProps {
   match: LayoutMatch
   roundCount: number
   dims: LayoutDims
+  /** طرح ردیف ها — فقط ردیف های «بازنده مسابقه» جعبه رده بندی به آن نیاز دارند؛
+   *  پیش فرض کلاسیک تا بوم قرعه دست نخورد */
+  design?: SheetLayoutId
   /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام)؛ مسابقه هم پاس می آید تا برگه تعاملی همسایه اسلات را بشناسد */
   renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
 }
@@ -22,7 +26,7 @@ interface MatchBoxProps {
  * جعبه عمدا ساده است: خط نازک، گوشه ۸ و بدون سایه — تمایز طرح ها در ردیف
  * ها و سربرگ است نه در جعبه.
  */
-export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps) {
+export function MatchBox({ match, roundCount, dims, design = 'classic', renderLeaf }: MatchBoxProps) {
   const theme = useTableTheme()
 
   // مسابقه رده بندی باران مدال — سرتیتر «رده بندی» و دو ردیف «بازنده مسابقه N»
@@ -70,7 +74,9 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
               height: dims.cardHeight,
             }}
           >
-            {row.loser != null && <LoserRow matchNumber={row.loser} side={row.side} />}
+            {row.loser != null && (
+              <LoserRow matchNumber={row.loser} side={row.side} design={design} />
+            )}
           </div>
         ))}
       </div>

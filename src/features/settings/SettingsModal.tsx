@@ -748,11 +748,13 @@ function SheetLayoutCard({
         className="overflow-hidden rounded-lg border border-line"
         style={{ backgroundColor: theme.sheetBg }}
       >
-        {/* سربرگ ماکت — کلاسیک: عنوان + جعبه آمار + خط زیر؛ مدرن: ستون وسط چین بدون خط */}
+        {/* سربرگ ماکت — کلاسیک: عنوان + جعبه آمار + خط پهن زیر؛ مدرن: ستون وسط چین + جداکننده نازک */}
         <div
           className="flex items-center gap-1 px-1.5 py-1"
           style={{
-            borderBottom: modern ? undefined : `1.5px solid ${theme.headerRule}`,
+            borderBottom: modern
+              ? `1px solid ${theme.statBorder}`
+              : `1.5px solid ${theme.headerRule}`,
           }}
         >
           {modern ? (
@@ -790,13 +792,16 @@ function SheetLayoutCard({
             </>
           )}
         </div>
-        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: فقط رنگ ملایم گوشه */}
+        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: رنگ ملایم داخل کادر نازک */}
         <div className="space-y-1 p-1.5">
           {(['chong', 'hong'] as const).map((side) => (
             <div
               key={side}
               className="flex h-3 items-center overflow-hidden rounded"
-              style={{ backgroundColor: theme.sides[side].bgSoft }}
+              style={{
+                backgroundColor: theme.sides[side].bgSoft,
+                ...(modern && { border: `1px solid ${theme.sides[side].borderSoft}` }),
+              }}
             >
               {!modern && (
                 <span
