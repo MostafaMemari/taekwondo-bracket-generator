@@ -39,7 +39,7 @@ const state = {
     issues: sizeFilter ? [] : roster.issues,
     draws,
     selectedGroupId: selectedGroup,
-    meta: { title: '', subtitle: '', logoDataUrl: null },
+    meta: { title: '', subtitle: '', logoDataUrl: null, sheetTitleFormat: '{رده سنی} — وزن {وزن}' },
     matchNumberOverrides: {},
   },
   version: 4,

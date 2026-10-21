@@ -37,7 +37,7 @@ import { Segmented } from '../../components/Segmented.tsx'
 import { EmptyState } from '../../components/EmptyState.tsx'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
-import { toEnDigits, toFaDigits, groupTitle } from '../../lib/formatFa.ts'
+import { toEnDigits, toFaDigits, groupTitle, renderWeightTitle } from '../../lib/formatFa.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
 import { beltColorFor } from '../../lib/beltColor.ts'
 import { compareByWeightLabel } from '../../lib/weightSorting.ts'
@@ -193,7 +193,11 @@ export function SchedulePage() {
             const sheet = activeTabSheets[index]
             await exportImageFromElement(
               element,
-              `${base} — ${groupTitle(sheet.draw.group.ageCategory, sheet.draw.group.weightCategory)}`,
+              `${base} — ${renderWeightTitle(meta.sheetTitleFormat, {
+                ageCategory: sheet.draw.group.ageCategory,
+                weightCategory: sheet.draw.group.weightCategory,
+                tournamentTitle: meta.title,
+              })}`,
             )
             // مرورگر دانلودهای پشت سرهم را محدود می کند
             await new Promise((resolve) => window.setTimeout(resolve, 350))
@@ -203,7 +207,11 @@ export function SchedulePage() {
           if (!element) throw new Error('single export sheet not found')
           await exportImageFromElement(
             element,
-            `${imageBaseName(meta.title)} — ${groupTitle(imageSheet.draw.group.ageCategory, imageSheet.draw.group.weightCategory)}`,
+            `${imageBaseName(meta.title)} — ${renderWeightTitle(meta.sheetTitleFormat, {
+              ageCategory: imageSheet.draw.group.ageCategory,
+              weightCategory: imageSheet.draw.group.weightCategory,
+              tournamentTitle: meta.title,
+            })}`,
           )
         }
       } catch (error) {
@@ -218,7 +226,7 @@ export function SchedulePage() {
     return () => {
       cancelled = true
     }
-  }, [exporting, meta.title, activeTabSheets, imageSheet])
+  }, [exporting, meta, activeTabSheets, imageSheet])
 
   const exportDisabled = scheduleSessions.length === 0 || built.totalMatches === 0
 
@@ -571,7 +579,11 @@ function TablesView({
               </span>
               <BeltDot hex={belt.hex} needsBorder={belt.needsBorder} />
               <span className="text-sm font-bold text-ink-900">
-                {groupTitle(sheet.draw.group.ageCategory, sheet.draw.group.weightCategory)}
+                {renderWeightTitle(meta.sheetTitleFormat, {
+                  ageCategory: sheet.draw.group.ageCategory,
+                  weightCategory: sheet.draw.group.weightCategory,
+                  tournamentTitle: meta.title,
+                })}
               </span>
               <span className="text-[11px] text-muted">{sheet.note}</span>
               <span className="flex-1" />
@@ -862,7 +874,7 @@ function MatEditor({
                 key={groupId}
                 className="flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-800"
               >
-                {draw.group.ageCategory} {draw.group.weightCategory}
+                {toFaDigits(draw.group.ageCategory)} {toFaDigits(draw.group.weightCategory)}
                 <button
                   onClick={() => onToggleGroup(groupId)}
                   className="text-muted transition-colors hover:text-hogu-600"
@@ -889,7 +901,7 @@ function MatEditor({
             ))}
             {zeroMatch.map((draw) => (
               <option key={draw.groupId} disabled>
-                {draw.group.ageCategory} — وزن {draw.group.weightCategory} (بدون مسابقه)
+                {groupTitle(draw.group.ageCategory, draw.group.weightCategory)} (بدون مسابقه)
               </option>
             ))}
           </select>
@@ -910,7 +922,7 @@ function MatEditor({
                   needsBorder={beltColorFor(weight.groupId).needsBorder}
                 />
                 <span className="text-[11.5px] font-bold text-ink-900">
-                  {weight.ageCategory} — وزن {weight.weightCategory}
+                  {groupTitle(weight.ageCategory, weight.weightCategory)}
                 </span>
                 <span className="text-[10px] text-muted">({toFaDigits(weight.matchCount)} مسابقه)</span>
               </div>

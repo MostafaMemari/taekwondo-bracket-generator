@@ -1,4 +1,4 @@
-import { downloadBlob, nextFrame, rasterizeElement } from '../pdf/exportGroupImage.ts'
+import { downloadBlob, nextFrame, rasterizeElement, safeFileName } from '../pdf/exportGroupImage.ts'
 import {
   addLandscapePage,
   addPortraitSlicePage,
@@ -45,7 +45,7 @@ export async function exportScheduleToPdf(tournamentTitle: string): Promise<void
     await addPortraitSlicePage(pdf, blob, index)
   }
 
-  pdf.save(`${schedulePdfName(tournamentTitle)}.pdf`)
+  pdf.save(safeFileName(`${schedulePdfName(tournamentTitle)}.pdf`))
 }
 
 /**
@@ -125,5 +125,5 @@ export async function exportScheduleBundlePdf(
     pageAdded = true
   }
 
-  pdf.save(scheduleBundlePdfName(tournamentTitle, mode))
+  pdf.save(safeFileName(scheduleBundlePdfName(tournamentTitle, mode)))
 }

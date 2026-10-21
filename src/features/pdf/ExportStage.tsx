@@ -7,7 +7,7 @@ import { effectiveMatchNumbers } from '../../core/schedule/schedule.ts'
 import { BracketSheet } from './BracketSheet.tsx'
 import { exportDrawsToPdf } from './exportDrawsToPdf.ts'
 import { exportImageFromElement, imageBaseName } from './exportGroupImage.ts'
-import { groupTitle } from '../../lib/formatFa.ts'
+import { renderWeightTitle } from '../../lib/formatFa.ts'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
 
@@ -86,7 +86,11 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
             const draw = draws[index]
             await exportImageFromElement(
               element,
-              `${base} — ${groupTitle(draw.group.ageCategory, draw.group.weightCategory)}`,
+              `${base} — ${renderWeightTitle(meta.sheetTitleFormat, {
+                ageCategory: draw.group.ageCategory,
+                weightCategory: draw.group.weightCategory,
+                tournamentTitle: meta.title,
+              })}`,
             )
             // مرورگر دانلودهای پشت سرهم را محدود می کند
             await new Promise((resolve) => window.setTimeout(resolve, 350))
@@ -102,7 +106,7 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
     return () => {
       cancelled = true
     }
-  }, [draws, finishExportJob, kind, meta.title])
+  }, [draws, finishExportJob, kind, meta])
 
   return (
     <>

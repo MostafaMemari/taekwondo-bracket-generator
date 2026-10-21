@@ -3,7 +3,7 @@ import { LayoutGrid, List, SquareStack } from 'lucide-react'
 import { sheetScheduleNote } from '../../core/schedule/schedule.ts'
 import { useTournament } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
-import { toFaDigits } from '../../lib/formatFa.ts'
+import { groupTitle, toFaDigits } from '../../lib/formatFa.ts'
 import { realMatchCount } from '../../lib/drawStats.ts'
 import { ScheduleSheet } from './ScheduleSheet.tsx'
 import { exportScheduleBundlePdf, type SchedulePrintMode } from './exportSchedule.ts'
@@ -74,7 +74,7 @@ export function SchedulePrintPage() {
       .filter((draw) => !assigned.has(draw.groupId) && draw.structure.roundCount > 0)
       .map(
         (draw) =>
-          `${draw.group.ageCategory} — وزن ${draw.group.weightCategory} (${toFaDigits(realMatchCount(draw))} مسابقه)`,
+          `${groupTitle(draw.group.ageCategory, draw.group.weightCategory)} (${toFaDigits(realMatchCount(draw))} مسابقه)`,
       )
   }, [drawList, built.assignedGroupIds])
 

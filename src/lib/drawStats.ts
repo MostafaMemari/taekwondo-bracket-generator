@@ -1,5 +1,5 @@
 import type { GroupDraw } from '../core/types.ts'
-import { toFaDigits } from './formatFa.ts'
+import { groupTitle, toFaDigits } from './formatFa.ts'
 
 /**
  * تعداد مسابقه های واقعی یک وزن: در جدول حذفی تک نفره هر شرکت کننده دقیقا
@@ -15,5 +15,5 @@ export function realMatchCount(draw: GroupDraw): number {
 
 /** برچسب استاندارد یک وزن برای فهرست ها و option ها — با شمار مسابقه ها */
 export function groupOptionLabel(draw: GroupDraw): string {
-  return `${draw.group.ageCategory} — وزن ${draw.group.weightCategory} (${toFaDigits(realMatchCount(draw))} مسابقه)`
+  return `${groupTitle(draw.group.ageCategory, draw.group.weightCategory)} (${toFaDigits(realMatchCount(draw))} مسابقه)`
 }

@@ -6,7 +6,7 @@ import {
   winnerLabelPending,
 } from '../../core/schedule/schedule.ts'
 import { type TournamentMeta } from '../../store/tournamentStore.ts'
-import { toFaDigits } from '../../lib/formatFa.ts'
+import { renderWeightTitle, toFaDigits } from '../../lib/formatFa.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
 import { beltColorFor } from '../../lib/beltColor.ts'
 import { StatCell } from '../../components/StatCell.tsx'
@@ -125,7 +125,7 @@ export function ScheduleSheet({ schedule, meta, unassignedLabels, manualNumbers 
               </span>
             </div>
             {scheduled.mats.map((mat) => (
-              <MatBlock key={mat.mat.id} mat={mat} schedule={schedule} manualNumbers={manualNumbers} />
+              <MatBlock key={mat.mat.id} mat={mat} schedule={schedule} manualNumbers={manualNumbers} titleFormat={meta.sheetTitleFormat} tournamentTitle={meta.title} />
             ))}
           </section>
         ))
@@ -155,10 +155,15 @@ function MatBlock({
   mat,
   schedule,
   manualNumbers,
+  titleFormat,
+  tournamentTitle,
 }: {
   mat: ScheduledMat
   schedule: BuiltSchedule
   manualNumbers?: Map<string, string>
+  /** قالب عنوان وزن ها از تنظیمات سراسری */
+  titleFormat: string
+  tournamentTitle: string
 }) {
   return (
     <div className="schedule-avoid-break" style={{ marginTop: 12, breakInside: 'avoid' }}>
@@ -185,7 +190,14 @@ function MatBlock({
         </p>
       ) : (
         mat.weights.map((weight) => (
-          <WeightBlock key={weight.groupId} weight={weight} schedule={schedule} manualNumbers={manualNumbers} />
+          <WeightBlock
+            key={weight.groupId}
+            weight={weight}
+            schedule={schedule}
+            manualNumbers={manualNumbers}
+            titleFormat={titleFormat}
+            tournamentTitle={tournamentTitle}
+          />
         ))
       )}
     </div>
@@ -196,10 +208,15 @@ function WeightBlock({
   weight,
   schedule,
   manualNumbers,
+  titleFormat,
+  tournamentTitle,
 }: {
   weight: ScheduledWeight
   schedule: BuiltSchedule
   manualNumbers?: Map<string, string>
+  /** قالب عنوان وزن ها از تنظیمات سراسری */
+  titleFormat: string
+  tournamentTitle: string
 }) {
   const belt = beltColorFor(weight.groupId)
   return (
@@ -217,7 +234,11 @@ function WeightBlock({
           }}
         />
         <span style={{ fontSize: 12.5, fontWeight: 700 }}>
-          {weight.ageCategory} — وزن {weight.weightCategory}
+          {renderWeightTitle(titleFormat, {
+            ageCategory: weight.ageCategory,
+            weightCategory: weight.weightCategory,
+            tournamentTitle,
+          })}
         </span>
         <span style={{ fontSize: 10, color: MUTED }}>({toFaDigits(weight.matchCount)} مسابقه)</span>
       </div>

@@ -1,4 +1,5 @@
 import { addLandscapePage, rasterizePage } from './pdfPages.ts'
+import { safeFileName } from './exportGroupImage.ts'
 
 function pdfFileName(title: string): string {
   const base = title.trim() || 'قرعه کشی مسابقات تکواندو'
@@ -35,5 +36,5 @@ export async function exportDrawsToPdf(
     }
   }
 
-  pdf.save(pdfFileName(tournamentTitle))
+  pdf.save(safeFileName(pdfFileName(tournamentTitle)))
 }

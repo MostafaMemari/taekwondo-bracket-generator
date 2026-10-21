@@ -2,6 +2,11 @@ import { useRef, useState } from 'react'
 import { ImageUp, Trash2, X } from 'lucide-react'
 import { useTournament, type TournamentMeta } from '../../store/tournamentStore.ts'
 import { Button } from '../../components/Button.tsx'
+import {
+  renderWeightTitle,
+  SHEET_TITLE_DEFAULT_FORMAT,
+  SHEET_TITLE_VARIABLES,
+} from '../../lib/formatFa.ts'
 
 interface SettingsModalProps {
   open: boolean
@@ -42,7 +47,13 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const meta = useTournament((state) => state.meta)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
-  return <SettingsForm key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}`} initial={meta} onClose={onClose} />
+  return (
+    <SettingsForm
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}`}
+      initial={meta}
+      onClose={onClose}
+    />
+  )
 }
 
 function SettingsForm({
@@ -55,6 +66,7 @@ function SettingsForm({
   const updateMeta = useTournament((state) => state.updateMeta)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
+  const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
   const [logo, setLogo] = useState<string | null>(initial.logoDataUrl)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -73,7 +85,12 @@ function SettingsForm({
   }
 
   function save() {
-    updateMeta({ title: title.trim(), subtitle: subtitle.trim(), logoDataUrl: logo })
+    updateMeta({
+      title: title.trim(),
+      subtitle: subtitle.trim(),
+      sheetTitleFormat: sheetTitleFormat.trim(),
+      logoDataUrl: logo,
+    })
     onClose()
   }
 
@@ -125,6 +142,44 @@ function SettingsForm({
               placeholder="مثلاً: سالن انقلاب تهران — ۱۴۰۴/۰۸/۱۵"
               className="w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-mat-600"
             />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              قالب عنوان وزن ها
+              <span className="ms-2 text-xs font-normal text-muted">
+                سربرگ برگه های چاپی و نام فایل خروجی ها با همین قالب ساخته می شود
+              </span>
+            </label>
+            <input
+              value={sheetTitleFormat}
+              onChange={(event) => setSheetTitleFormat(event.target.value)}
+              placeholder="مثلا: وزن {وزن} — رده {رده سنی}"
+              className="w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-mat-600"
+            />
+            <p className="mt-1.5 text-xs leading-5 text-muted">
+              متغیرهای مجاز:{' '}
+              {SHEET_TITLE_VARIABLES.map((variable) => (
+                <code
+                  key={variable}
+                  dir="rtl"
+                  className="mx-0.5 rounded bg-turf px-1.5 py-0.5 font-medium text-ink-800"
+                >
+                  {variable}
+                </code>
+              ))}
+              {' — '}خالی بگذارید تا پیش فرض «{SHEET_TITLE_DEFAULT_FORMAT}» استفاده شود.
+            </p>
+            <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs text-muted">
+              پیش نمایش:{' '}
+              <span className="font-bold text-ink-900">
+                {renderWeightTitle(sheetTitleFormat, {
+                  ageCategory: 'نوجوانان',
+                  weightCategory: '۵۴',
+                  tournamentTitle: title,
+                })}
+              </span>
+            </p>
           </div>
 
           <div>

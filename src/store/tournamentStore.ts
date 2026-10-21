@@ -7,7 +7,7 @@ import { attachBronzeMatch } from '../core/bracket/medalRain.ts'
 import { groupByCategory } from '../core/grouping/groupByCategory.ts'
 import { type ScheduleMat, type ScheduleSession } from '../core/schedule/schedule.ts'
 import { createId } from '../core/id.ts'
-import { toEnDigits, toFaDigits } from '../lib/formatFa.ts'
+import { toEnDigits, toFaDigits, SHEET_TITLE_DEFAULT_FORMAT } from '../lib/formatFa.ts'
 import type {
   CategoryGroup,
   GroupDraw,
@@ -40,12 +40,18 @@ export interface TournamentMeta {
   /** secondary line: venue / date / stage … */
   subtitle: string
   logoDataUrl: string | null
+  /**
+   * قالب عنوان وزن ها — سربرگ برگه های چاپی و نام فایل خروجی ها با همین قالب
+   * ساخته می شود. متغیرها: {رده سنی} {وزن} {عنوان}؛ خالی یعنی پیش فرض.
+   */
+  sheetTitleFormat: string
 }
 
 export const defaultMeta: TournamentMeta = {
   title: '',
   subtitle: '',
   logoDataUrl: null,
+  sheetTitleFormat: SHEET_TITLE_DEFAULT_FORMAT,
 }
 
 /**
@@ -645,7 +651,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 9,
+      version: 10,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -656,6 +662,8 @@ export const useTournament = create<TournamentState>()(
         // value; the per-session restart switch dies because numbering now
         // ALWAYS restarts per mat (هر زمین از ۱)
         // v9: باران مدال — جدول ها و مسابقه رده بندی شان بعد از بازسازی قرعه برمی گردند
+        // v10: قالب عنوان وزن ها — ذخیره های قدیمی پیش فرض را می گیرند
+        //      (meta در پایین با defaultMeta ادغام می شود)
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',

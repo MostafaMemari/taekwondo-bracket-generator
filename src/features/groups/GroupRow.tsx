@@ -39,7 +39,7 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
       />
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-right">
         <span className="shrink-0 font-display text-lg leading-7 text-ink-900">
-          وزن {draw.group.weightCategory}
+          وزن {toFaDigits(draw.group.weightCategory)}
         </span>
         {solo ? (
           <span className="truncate text-xs text-muted">

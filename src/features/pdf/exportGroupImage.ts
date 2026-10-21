@@ -19,15 +19,23 @@ export async function exportImageFromElement(
 }
 
 /** save any blob through a temporary object URL */
-export function downloadBlob(blob: Blob, fileName: string): void {
+export function downloadBlob(blob: Blob, rawFileName: string): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = fileName
+  link.download = safeFileName(rawFileName)
   document.body.appendChild(link)
   link.click()
   link.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+/**
+ * نام فایل دانلود امن — کاراکترهای ممنوع ویندوز و مرورگر (\\ / : * ? " < > |)
+ * به فاصله تبدیل می شوند تا قالب دلخواه کاربر در نام فایل هم سالم بنشیند.
+ */
+export function safeFileName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
 }
 
 /** capture an element at 2× as a PNG blob — html-to-image first, html2canvas fallback */

@@ -12,7 +12,7 @@ import {
 } from "../../core/bracket/layout.ts";
 import type { TournamentMeta } from "../../store/tournamentStore.ts";
 import { beltColorFor } from "../../lib/beltColor.ts";
-import { groupTitle, toFaDigits } from "../../lib/formatFa.ts";
+import { renderWeightTitle, toFaDigits } from "../../lib/formatFa.ts";
 import { realMatchCount } from "../../lib/drawStats.ts";
 import { findSoloParticipant } from "../../lib/soloDraw.ts";
 import { roundLabel } from "../../lib/roundLabels.ts";
@@ -184,20 +184,23 @@ export function BracketSheet({
           >
             {title}
           </h1>
-          <p
-            style={{
-              fontSize: 12.5,
-              color: "#5b6b82",
-              margin: "3px 0 0",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              textAlign: "center",
-            }}
-          >
-            {meta.subtitle && <span>{meta.subtitle} — </span>}
-            نظام حذفی تک حذفی — برگه قرعه کشی
-          </p>
+          {/* زیرعنوان اختیاری از تنظیمات — برچسب های ثابت قبلی («نظام حذفی تک حذفی
+              — برگه قرعه کشی») حذف شدند؛ چیزی که کاربر نخواسته روی برگه نمی نشیند */}
+          {meta.subtitle && (
+            <p
+              style={{
+                fontSize: 12.5,
+                color: "#5b6b82",
+                margin: "3px 0 0",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                textAlign: "center",
+              }}
+            >
+              {meta.subtitle}
+            </p>
+          )}
           <p
             style={{
               display: "flex",
@@ -221,7 +224,11 @@ export function BracketSheet({
                 flexShrink: 0,
               }}
             />
-            {groupTitle(draw.group.ageCategory, draw.group.weightCategory)}
+            {renderWeightTitle(meta.sheetTitleFormat, {
+              ageCategory: draw.group.ageCategory,
+              weightCategory: draw.group.weightCategory,
+              tournamentTitle: meta.title,
+            })}
           </p>
           {/* زمین و ساعت حضور — درشت و خوانا تا از دور دیده شود */}
           {hasMatBadge && (
@@ -644,7 +651,11 @@ function ContinuationHeader({
         }}
       >
         {meta.title && <span>{meta.title} —</span>}
-        {groupTitle(draw.group.ageCategory, draw.group.weightCategory)}
+        {renderWeightTitle(meta.sheetTitleFormat, {
+          ageCategory: draw.group.ageCategory,
+          weightCategory: draw.group.weightCategory,
+          tournamentTitle: meta.title,
+        })}
         <span style={{ fontSize: 10.5, fontWeight: 500, color: "#5b6b82" }}>— {note}</span>
       </span>
       <span style={{ fontSize: 10.5, color: "#5b6b82", whiteSpace: "nowrap" }}>
