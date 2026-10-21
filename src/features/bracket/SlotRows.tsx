@@ -28,8 +28,10 @@ export type BarSide = 'right' | 'left'
 
 /**
  * طرح ردیف — کلاسیک: نوار رنگی روی لبه بیرونی (آینه ای)؛ مدرن: نوار رنگی لبه
- * بالای کارت (آینه بی معناست چون نوار سراسری است) + خط نرم دور کارت. پیش فرض
- * کلاسیک تا بوم قرعه و همه مصرف کننده های قدیمی دست نخورده بمانند.
+ * بالای کارت (آینه بی معناست چون نوار سراسری است) + خط نرم دور کارت؛
+ * تشریفاتی: دورخط ۱px بیرونی + دورخط داخلی هم رنگ گوشه — کارت دوخطه سند
+ * قهرمانی. پیش فرض کلاسیک تا بوم قرعه و همه مصرف کننده های قدیمی دست نخورده
+ * بمانند.
  */
 export type RowDesign = SheetLayoutId
 
@@ -61,6 +63,51 @@ export function AthleteRow({
   const coachVisible =
     (showCoach ?? nameFontSize >= 11) && participant.coachName.trim().length > 0
   const subSize = coachFontSize ?? Math.max(8.5, nameFontSize - 4.5)
+
+  // طرح تشریفاتی — کارت دوخطه سند قهرمانی: دورخط نرم بیرونی + دورخط داخلی
+  // هم رنگ گوشه؛ خط داخلی با div مطلق است نه outline تا در همه مسیرهای خروجی
+  // (چاپ/عکس/PDF) بی کم و کاش رستر شود
+  if (design === 'royal') {
+    return (
+      <div
+        dir="rtl"
+        className="relative flex h-full w-full flex-col items-stretch justify-center overflow-hidden rounded-md px-1.5"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          border: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-[3px]"
+          style={{ inset: 2.5, border: `1px solid ${sideColors.accent}`, opacity: 0.75 }}
+        />
+        <div className="flex min-h-0 w-full flex-1 flex-col items-stretch justify-center gap-0.5">
+          <FitText
+            text={participant.fullName}
+            baseSize={nameFontSize}
+            minSize={coachVisible ? 5.5 : 7}
+            twoLine={!coachVisible}
+            align="center"
+            className="font-bold leading-tight"
+            style={{ color: theme.nameText }}
+          />
+          {coachVisible && (
+            <FitText
+              text={participant.coachName}
+              baseSize={subSize}
+              minSize={6.5}
+              twoLine={false}
+              align="center"
+              className="font-medium"
+              style={{ lineHeight: 1.25, color: theme.coachText }}
+              title={`مربی: ${participant.coachName}`}
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
 
   // طرح مدرن — کارت با نوار رنگی لبه بالا و خط نرم دور؛ نام/مربی همان وسط چین
   if (design === 'modern') {
@@ -225,7 +272,7 @@ export function PositionRow({ side, emphasis = false }: { side: SlotSide; emphas
  * جایگاه «برنده مسابقه N» — روی صفحه پایانیِ برگه های چند صفحه ای، جایی که
  * مسابقه های دور قبل روی صفحات نوار چیده شده اند. شماره از خود ساختار درخت
  * می آید و با رقم فارسی نشان داده می شود؛ در طرح کلاسیک نوارش مثل ردیف ها
- * آینه می شود و در طرح مدرن نوار رنگی لبه بالا می گیرد.
+ * آینه می شود، در مدرن نوار لبه بالا می گیرد و در تشریفاتی دورخط داخلی می نشیند.
  */
 export function WinnerRow({
   matchNumber,
@@ -250,6 +297,26 @@ export function WinnerRow({
       style={{ color: sideColors.accent }}
     />
   )
+  // تشریفاتی — دورخط داخلی هم رنگ گوشه، هماهنگ با ردیف های هنرجو
+  if (design === 'royal') {
+    return (
+      <div
+        dir="rtl"
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          border: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-[3px]"
+          style={{ inset: 2.5, border: `1px solid ${sideColors.accent}`, opacity: 0.75 }}
+        />
+        {label}
+      </div>
+    )
+  }
   if (design === 'modern') {
     return (
       <div
@@ -293,7 +360,7 @@ export function WinnerRow({
 /**
  * جایگاه «بازنده مسابقه N» — دو گوشه مسابقه رده بندی باران مدال، جایی که
  * بازنده های دو نیمه نهایی برای مدال برنز به هم می رسند؛ مثل بقیه ردیف ها:
- * نوار آینه در کلاسیک، نوار لبه بالا در مدرن.
+ * نوار آینه در کلاسیک، نوار لبه بالا در مدرن، دورخط داخلی در تشریفاتی.
  */
 export function LoserRow({
   matchNumber,
@@ -318,6 +385,26 @@ export function LoserRow({
       style={{ color: sideColors.accent }}
     />
   )
+  // تشریفاتی — دورخط داخلی هم رنگ گوشه، هماهنگ با ردیف های هنرجو
+  if (design === 'royal') {
+    return (
+      <div
+        dir="rtl"
+        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          border: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-[3px]"
+          style={{ inset: 2.5, border: `1px solid ${sideColors.accent}`, opacity: 0.75 }}
+        />
+        {label}
+      </div>
+    )
+  }
   if (design === 'modern') {
     return (
       <div

@@ -1,6 +1,7 @@
-/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن) — تعویض از تنظیمات، امضاهای
-   بصری طرح مدرن (ریبون لبه بالا، پیل های سربرگ، نوار رنگی بالای ردیف ها،
-   پلاک قهرمان کپسولی)، تیتر دورهای بی کادر به درخواست کاربر، سازگاری تم
+/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن/تشریفاتی) — تعویض از تنظیمات،
+   امضاهای بصری طرح مدرن (ریبون لبه بالا، پیل های سربرگ، نوار رنگی بالای
+   ردیف ها، پلاک قهرمان کپسولی)، امضاهای طرح تشریفاتی (قاب دوخطه با نشان
+   الماسی، اتصال مهره ای، تیتر دورهای بی کادر در هر سه طرح)، سازگاری تم
    شبانه، و برگشت بی رگرسیون به کلاسیک */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
@@ -68,7 +69,11 @@ check('settings: «طرح برگه» section exists', (await layoutSection.count
 
 const modernCard = page.getByRole('button', { name: /مدرن/ }).first()
 const classicCard = page.getByRole('button', { name: /کلاسیک/ }).first()
-check('settings: two layout cards render', (await modernCard.count()) === 1 && (await classicCard.count()) === 1)
+const royalCard = page.getByRole('button', { name: /تشریفاتی/ }).first()
+check(
+  'settings: three layout cards render',
+  (await modernCard.count()) === 1 && (await classicCard.count()) === 1 && (await royalCard.count()) === 1,
+)
 check(
   'settings: classic card starts selected',
   (await classicCard.getAttribute('aria-pressed')) === 'true',
@@ -180,6 +185,115 @@ if (modern) {
   )
 }
 await page.screenshot({ path: 'scripts/t30/modern-sheet.png' })
+
+/* ————— طرح تشریفاتی — قاب سند قهرمانی ————— */
+await page.getByLabel('تنظیمات مسابقات').click()
+await page.waitForTimeout(300)
+await royalCard.click()
+await page.getByRole('button', { name: 'ذخیره' }).click()
+await page.waitForTimeout(600)
+
+check(
+  'after save: sheet switches to data-sheet-layout="royal"',
+  (await firstSheet.getAttribute('data-sheet-layout')) === 'royal',
+)
+
+const royal = await page.evaluate(() => {
+  const sheet = document.querySelector('#pdf-sheet-1000')
+  if (!sheet) return null
+  const frame = sheet.querySelector('[data-royal-frame]')
+  const corners = frame?.querySelector('[data-royal-corners]')
+  const frameLines = frame
+    ? [...frame.children].filter((el) => !el.hasAttribute('data-royal-corners')).length
+    : 0
+  // اتصال های مهره ای — خط چین نقطه گرد
+  const beaded = [...sheet.querySelectorAll('polyline')].filter(
+    (line) => line.getAttribute('stroke-dasharray') === '0.1 8',
+  ).length
+  const header = sheet.querySelector('header')
+  const statLine = [...(header?.querySelectorAll('p') ?? [])].some((p) =>
+    p.textContent?.includes('شرکت کننده'),
+  )
+  // تیتر دورها در تشریفاتی هم بی کادر می ماند — قانون ثابت کاربر
+  const frameless = (style) =>
+    parseFloat(style.borderTopWidth) === 0 &&
+    parseFloat(style.borderBottomWidth) === 0 &&
+    parseFloat(style.borderLeftWidth) === 0 &&
+    parseFloat(style.borderRightWidth) === 0 &&
+    (style.backgroundColor === 'rgba(0, 0, 0, 0)' || style.backgroundColor === 'transparent')
+  function roundLabelState(labelText) {
+    const el = [...sheet.querySelectorAll('span, div')].find(
+      (node) => node.childElementCount === 0 && node.textContent?.trim() === labelText,
+    )
+    if (!el || !el.parentElement) return null
+    return {
+      self: frameless(getComputedStyle(el)),
+      parent: frameless(getComputedStyle(el.parentElement)),
+    }
+  }
+  const roundLabels = ['فینال', 'نیمه نهایی', 'یک چهارم نهایی'].map((text) => ({
+    text,
+    state: roundLabelState(text),
+  }))
+  const champion = [...sheet.querySelectorAll('div')].some(
+    (el) =>
+      getComputedStyle(el).borderTopLeftRadius === '999px' &&
+      el.textContent?.includes('قهرمان'),
+  )
+  // ردیف های دوخطه — دورخط بیرونی ۱px + خط داخلی مطلق (والد relative)
+  const rows = [...sheet.querySelectorAll('[dir="rtl"].flex.h-full')].slice(0, 8)
+  const outerFramedRows = rows.filter((row) => {
+    const style = getComputedStyle(row)
+    return parseFloat(style.borderTopWidth) === 1 && style.position === 'relative'
+  }).length
+  const sheetRect = sheet.getBoundingClientRect()
+  return {
+    frame: Boolean(frame),
+    frameLines,
+    corners: corners ? corners.childElementCount : 0,
+    beaded,
+    hasHeader: Boolean(header),
+    statLine,
+    roundLabels,
+    champion,
+    outerFramedRows,
+    rowCount: rows.length,
+    sheetHeight: sheetRect.height,
+    overflow: sheet.scrollHeight - sheet.clientHeight,
+  }
+})
+check('royal: geometry measurable', Boolean(royal))
+if (royal) {
+  check(
+    `royal: grand double frame renders (${royal.frameLines} lines + ${royal.corners} corner diamonds)`,
+    royal.frame && royal.frameLines === 2 && royal.corners === 4,
+  )
+  check(`royal: connectors become beaded dots (${royal.beaded})`, royal.beaded >= 1)
+  check('royal: header renders with the diamond stats line', royal.hasHeader && royal.statLine)
+  check(
+    `royal: rows carry the outer hairline frame (${royal.outerFramedRows}/${royal.rowCount})`,
+    royal.outerFramedRows >= 2,
+  )
+  for (const label of royal.roundLabels) {
+    check(
+      `royal: round label «${label.text}» stays frameless`,
+      Boolean(label.state) && label.state.self && label.state.parent,
+    )
+  }
+  check('royal: champion capsule with flanking diamonds', royal.champion)
+  check(
+    `royal: sheet still A4 fixed (${royal.sheetHeight}px, overflow ${royal.overflow}px)`,
+    Math.abs(royal.sheetHeight - 770) <= 1 && royal.overflow <= 1,
+  )
+}
+await page.screenshot({ path: 'scripts/t30/royal-sheet.png' })
+
+/* ————— برگشت به مدرن برای تست شبانه ————— */
+await page.getByLabel('تنظیمات مسابقات').click()
+await page.waitForTimeout(300)
+await page.getByRole('button', { name: /مدرن/ }).first().click()
+await page.getByRole('button', { name: 'ذخیره' }).click()
+await page.waitForTimeout(600)
 
 /* ————— سازگاری تم: شبانه + مدرن — بج زمین رنگ تم می گیرد ————— */
 await page.getByLabel('تنظیمات مسابقات').click()

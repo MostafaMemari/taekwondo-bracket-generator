@@ -1059,18 +1059,20 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
   })(),
 )
 
-// ————— طرح برگه (کلاسیک/مدرن) — منبع حقیقت + مهاجرت v17 —————
+// ————— طرح برگه (کلاسیک/مدرن/تشریفاتی) — منبع حقیقت + مهاجرت v17 —————
 
 {
   const layouts = await import('../src/lib/sheetLayouts.ts')
   const layoutList = layouts.sheetLayouts
-  check('sheet layouts: two options, classic first and default',
-    layoutList.length === 2 &&
+  check('sheet layouts: three options, classic first and default',
+    layoutList.length === 3 &&
       layoutList[0]!.id === 'classic' &&
-      layoutList[1]!.id === 'modern',
+      layoutList[1]!.id === 'modern' &&
+      layoutList[2]!.id === 'royal',
   )
   check('sheet layouts: normalize accepts valid ids and rejects junk/empty',
     layouts.normalizeSheetLayoutId('modern') === 'modern' &&
+      layouts.normalizeSheetLayoutId('royal') === 'royal' &&
       layouts.normalizeSheetLayoutId('classic') === 'classic' &&
       layouts.normalizeSheetLayoutId('junk') === 'classic' &&
       layouts.normalizeSheetLayoutId(42) === 'classic' &&
@@ -1078,7 +1080,7 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
   )
 }
 
-check('sheet layout: store migration v17 defaults old saves to classic and keeps modern',
+check('sheet layout: store migration v17 defaults old saves to classic and keeps modern/royal',
   await (async () => {
     if (typeof globalThis.localStorage === 'undefined') {
       const memory = new Map<string, string>()
@@ -1099,9 +1101,11 @@ check('sheet layout: store migration v17 defaults old saves to classic and keeps
     if (typeof migrate !== 'function') return false
     const fresh = migrate({}) as { sheetLayout?: string }
     const kept = migrate({ sheetLayout: 'modern' }) as { sheetLayout?: string }
+    const keptRoyal = migrate({ sheetLayout: 'royal' }) as { sheetLayout?: string }
     const junk = migrate({ sheetLayout: 'junk' }) as { sheetLayout?: string }
     return fresh.sheetLayout === 'classic' &&
       kept.sheetLayout === 'modern' &&
+      keptRoyal.sheetLayout === 'royal' &&
       junk.sheetLayout === 'classic'
   })(),
 )

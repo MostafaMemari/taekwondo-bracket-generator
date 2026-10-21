@@ -129,14 +129,22 @@ export function BracketSheet({
   const chipScale = matchChipFactor(matchChipSize);
   // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
   const showChampion = useTournament((state) => state.showChampion);
-  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ ریبون دار و ردیف های نوار بالا)
+  // طرح برگه — کلاسیک (ظاهر همیشگی)، مدرن (ریبون و پیل) یا تشریفاتی (قاب سند قهرمانی)
   const sheetLayout = useTournament((state) => state.sheetLayout);
   const modern = sheetLayout === "modern";
+  const royal = sheetLayout === "royal";
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
   const withResults = variant === "print" && draw.structure.roundCount > 0;
-  // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر
+  // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر؛
+  // تشریفاتی یک سطر جداکننده الماسی دار و یک سطر آمار اضافه دارد — کمی بلندتر
   const hasMatBadge = Boolean(matLabel || attendTime);
-  const headerHeight = hasMatBadge ? 134 : HEADER_HEIGHT;
+  const headerHeight = royal
+    ? hasMatBadge
+      ? 138
+      : 120
+    : hasMatBadge
+      ? 134
+      : HEADER_HEIGHT;
   const isSolo = draw.structure.roundCount === 0;
 
   /**
@@ -223,7 +231,7 @@ export function BracketSheet({
   }
 
   function renderHeader() {
-    return modern ? renderModernHeader() : renderClassicHeader();
+    return modern ? renderModernHeader() : royal ? renderRoyalHeader() : renderClassicHeader();
   }
 
   /** سربرگ طرح مدرن — ریبون رنگی لبه بالا (خود ریبون در بدنه برگه است)،
@@ -473,6 +481,243 @@ export function BracketSheet({
     );
   }
 
+  /** سربرگ طرح تشریفاتی — سند قهرمانی: جداکننده الماسی دار بالای عنوان،
+   *  بج های مدالی دورخط (کمربند/زمین/ساعت)، لوگوی مدال گرد در لبه و آمار در
+   *  یک خط با جداکننده الماسی ریز — تیتر دورها بی کادر می ماند (قانون ثابت)
+   *  و همه رنگ ها از همان توکن های تم جدول می آید */
+  function renderRoyalHeader() {
+    const participantCount = draw.group.participantIds.length;
+    const restCount = draw.structure.restSlotIds.length;
+    const title = meta.title || "قرعه کشی مسابقات تکواندو";
+
+    // حلقه داخلی بج مدالی — span مطلق است نه outline تا در همه مسیرهای خروجی
+    // (چاپ/عکس/PDF) بی کم و کاست رستر شود
+    const ring = (color: string, opacity = 0.6) => (
+      <span
+        aria-hidden
+        className="pointer-events-none absolute rounded-full"
+        style={{ inset: 2.5, border: `1px solid ${color}`, opacity }}
+      />
+    );
+    const stats = [
+      { label: "شرکت کننده", value: participantCount },
+      { label: "مسابقه", value: realMatchCount(draw) },
+      { label: "استراحت", value: restCount },
+    ];
+
+    return (
+      <header
+        style={{
+          height: headerHeight,
+          flexShrink: 0,
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          padding: `6px ${SHEET_PAD_X + 44}px 8px`,
+        }}
+      >
+        {/* لوگوی مدال گرد — داخل قاب، لبه راست؛ حلقه داخلی با فاصله */}
+        {meta.logoDataUrl && (
+          <div
+            style={{
+              position: "absolute",
+              insetInlineStart: 26,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 66,
+              height: 66,
+              borderRadius: "50%",
+              border: `1.5px solid ${theme.chipBorder}`,
+              backgroundColor: theme.chipBg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+          >
+            {ring(theme.chipBorder, 0.6)}
+            <img
+              src={meta.logoDataUrl}
+              alt=""
+              style={{ maxWidth: 48, maxHeight: 48, objectFit: "contain" }}
+            />
+          </div>
+        )}
+
+        {/* جداکننده الماسی دار — خط، لوزی، خط */}
+        <div
+          aria-hidden
+          style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", maxWidth: 560 }}
+        >
+          <span
+            style={{ flex: 1, height: 1.5, background: `linear-gradient(to left, ${theme.headerRule}, transparent)` }}
+          />
+          <span style={{ width: 8, height: 8, transform: "rotate(45deg)", backgroundColor: theme.headerRule }} />
+          <span
+            style={{ flex: 1, height: 1.5, background: `linear-gradient(to right, ${theme.headerRule}, transparent)` }}
+          />
+        </div>
+
+        <h1
+          style={{
+            fontFamily: "Lalezar, Vazirmatn, sans-serif",
+            fontSize: meta.title ? 30 : 26,
+            lineHeight: 1.2,
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            textAlign: "center",
+            color: theme.titleText,
+            letterSpacing: 1.5,
+            maxWidth: "100%",
+          }}
+        >
+          {title}
+        </h1>
+        {meta.subtitle && (
+          <p
+            style={{
+              fontSize: 12.5,
+              color: theme.subtitleText,
+              margin: 0,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              textAlign: "center",
+              maxWidth: 560,
+              letterSpacing: 1,
+            }}
+          >
+            {meta.subtitle}
+          </p>
+        )}
+
+        {/* ردیف بج های مدالی — عنوان وزن متن اصلی است، بقیه مدال دورخط */}
+        <p
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 700, color: theme.titleText, letterSpacing: 1 }}>
+            {renderWeightTitle(meta.sheetTitleFormat, {
+              ageCategory: draw.group.ageCategory,
+              weightCategory: draw.group.weightCategory,
+              tournamentTitle: meta.title,
+            })}
+          </span>
+          {beltLabel && (
+            <span
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+                fontSize: 12,
+                fontWeight: 600,
+                color: theme.chipText,
+                backgroundColor: theme.chipBg,
+                border: `1.5px solid ${theme.chipBorder}`,
+                borderRadius: 999,
+                padding: "3px 14px 4.5px",
+                flexShrink: 0,
+              }}
+            >
+              {ring(theme.chipBorder, 0.6)}
+              کمربند {beltLabel}
+            </span>
+          )}
+          {matLabel && (
+            <span
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+                fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                fontSize: 16,
+                color: theme.matBadgeText,
+                backgroundColor: theme.matBadgeBg,
+                border: `1.5px solid ${theme.matBadgeBg}`,
+                borderRadius: 999,
+                padding: "3px 16px 5px",
+                letterSpacing: 0.5,
+                flexShrink: 0,
+              }}
+            >
+              {ring(theme.matBadgeText, 0.55)}
+              {matLabel}
+            </span>
+          )}
+          {attendTime && (
+            <span
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+                fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                fontSize: 16,
+                color: theme.timeBadgeText,
+                backgroundColor: theme.timeBadgeBg,
+                border: `2px solid ${theme.timeBadgeBorder}`,
+                borderRadius: 999,
+                padding: "2px 16px 4px",
+                letterSpacing: 0.5,
+                flexShrink: 0,
+              }}
+            >
+              {ring(theme.timeBadgeBorder, 0.55)}
+              ساعت {toFaDigits(attendTime)}
+            </span>
+          )}
+        </p>
+
+        {/* آمار در یک خط — جداکننده الماسی ریز بین خانه ها */}
+        <p
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            margin: 0,
+            fontSize: 11,
+            fontWeight: 600,
+            color: theme.statLabel,
+            letterSpacing: 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {stats.map((stat, statIndex) => (
+            <span key={stat.label} style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+              {statIndex > 0 && (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 5,
+                    height: 5,
+                    transform: "rotate(45deg)",
+                    backgroundColor: theme.statDivider,
+                    opacity: 0.9,
+                  }}
+                />
+              )}
+              {stat.label}
+              <b style={{ fontSize: 12.5, color: theme.titleText }}>{toFaDigits(stat.value)}</b>
+            </span>
+          ))}
+        </p>
+      </header>
+    );
+  }
+
   function renderClassicHeader() {
     const participantCount = draw.group.participantIds.length;
     const restCount = draw.structure.restSlotIds.length;
@@ -684,10 +929,10 @@ export function BracketSheet({
                 points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                 fill="none"
                 stroke={theme.connector}
-                strokeWidth={2}
+                strokeWidth={royal ? 3 : 2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray={modern ? "7 5" : undefined}
+                strokeDasharray={royal ? "0.1 8" : modern ? "7 5" : undefined}
               />
             ))}
           </svg>
@@ -754,17 +999,47 @@ export function BracketSheet({
                 alignItems: "center",
                 justifyContent: "center",
                 background: `linear-gradient(135deg, ${theme.championFrom}, ${theme.championTo})`,
-                borderRadius: modern ? 999 : 10,
+                borderRadius: modern || royal ? 999 : 10,
                 color: theme.championText,
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: modern ? 20 : 22,
-                letterSpacing: modern ? 3 : 1.5,
+                fontSize: modern || royal ? 20 : 22,
+                letterSpacing: modern || royal ? 3 : 1.5,
+                border: royal ? `2px solid ${theme.championText}` : undefined,
+                gap: royal ? 10 : undefined,
                 boxShadow: modern
                   ? `inset 0 0 0 2.5px rgba(255, 255, 255, 0.4), ${theme.championShadow}`
-                  : theme.championShadow,
+                  : royal
+                    ? `inset 0 0 0 2px rgba(255, 255, 255, 0.45), ${theme.championShadow}`
+                    : theme.championShadow,
               }}
             >
-              قهرمان
+              {royal ? (
+                <>
+                  <span
+                    aria-hidden
+                    style={{
+                      display: "inline-block",
+                      width: 6,
+                      height: 6,
+                      backgroundColor: theme.championText,
+                      transform: "rotate(45deg)",
+                    }}
+                  />
+                  قهرمان
+                  <span
+                    aria-hidden
+                    style={{
+                      display: "inline-block",
+                      width: 6,
+                      height: 6,
+                      backgroundColor: theme.championText,
+                      transform: "rotate(45deg)",
+                    }}
+                  />
+                </>
+              ) : (
+                "قهرمان"
+              )}
             </div>
           )}
 
@@ -878,6 +1153,7 @@ export function BracketSheet({
 
   const sheetStyle: React.CSSProperties = {
     width: sheetWidth,
+    position: "relative",
     backgroundColor: theme.sheetBg,
     color: theme.sheetText,
     display: "flex",
@@ -904,6 +1180,7 @@ export function BracketSheet({
           style={{ ...sheetStyle, height: pageHeight }}
         >
           {topRibbon}
+          {royal && <RoyalFrame />}
           {isSolo ? (
             <main
               style={{
@@ -912,7 +1189,7 @@ export function BracketSheet({
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: `0 ${SHEET_PAD_X}px`,
+                padding: royal ? `16px ${SHEET_PAD_X}px` : `0 ${SHEET_PAD_X}px`,
               }}
             >
               {soloContent}
@@ -923,7 +1200,7 @@ export function BracketSheet({
               <main
                 style={{
                   flex: 1,
-                  padding: `8px ${SHEET_PAD_X}px 0`,
+                  padding: royal ? `10px ${SHEET_PAD_X}px 22px` : `8px ${SHEET_PAD_X}px 0`,
                   minHeight: 0,
                   display: "flex",
                   flexDirection: "column",
@@ -961,6 +1238,7 @@ export function BracketSheet({
             style={{ ...sheetStyle, height: pageHeight }}
           >
             {topRibbon}
+            {royal && <RoyalFrame />}
             {isFirst ? (
               renderHeader()
             ) : (
@@ -977,7 +1255,7 @@ export function BracketSheet({
               style={{
                 flex: 1,
                 minHeight: 0,
-                padding: `8px ${SHEET_PAD_X}px 14px`,
+                padding: royal ? `10px ${SHEET_PAD_X}px 22px` : `8px ${SHEET_PAD_X}px 14px`,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
@@ -1019,6 +1297,7 @@ function ContinuationHeader({
 }) {
   const theme = useTableTheme();
   const modern = design === "modern";
+  const royal = design === "royal";
   return (
     <div
       dir="rtl"
@@ -1030,8 +1309,12 @@ function ContinuationHeader({
         justifyContent: "space-between",
         gap: 12,
         padding: `0 ${SHEET_PAD_X}px`,
-        borderBottom: modern ? `2px solid ${theme.headerRule}` : `1.5px solid ${theme.contRule}`,
-        backgroundColor: modern ? theme.chipBg : undefined,
+        borderBottom: royal
+          ? `3px double ${theme.contRule}`
+          : modern
+            ? `2px solid ${theme.headerRule}`
+            : `1.5px solid ${theme.contRule}`,
+        backgroundColor: modern || royal ? theme.chipBg : undefined,
       }}
     >
       <span
@@ -1045,6 +1328,18 @@ function ContinuationHeader({
           overflow: "hidden",
         }}
       >
+        {royal && (
+          <span
+            aria-hidden
+            style={{
+              display: "inline-block",
+              width: 5,
+              height: 5,
+              transform: "rotate(45deg)",
+              backgroundColor: theme.headerRule,
+            }}
+          />
+        )}
         {meta.title && <span>{meta.title} —</span>}
         {renderWeightTitle(meta.sheetTitleFormat, {
           ageCategory: draw.group.ageCategory,
@@ -1053,7 +1348,7 @@ function ContinuationHeader({
         })}
         <span style={{ fontSize: 10.5, fontWeight: 500, color: theme.contMuted }}>— {note}</span>
       </span>
-      {modern ? (
+      {modern || royal ? (
         <span
           style={{
             display: "inline-flex",
@@ -1081,6 +1376,55 @@ function ContinuationHeader({
 }
 
 /**
+ * قاب تشریفاتی دور تمام صفحه — دو خط هم مرکز (بیرونی پهن تر) + چهار نشان
+ * الماسی روی گوشه های قاب بیرونی؛ امضای «سند قهرمانی» طرح تشریفاتی. با
+ * pointer-events none تا با کشیدن/رها کردن تعاملی تداخل نکند و در همه صفحات
+ * (تک برگه و چند صفحه ای) یک جا رستر می شود.
+ */
+function RoyalFrame() {
+  const theme = useTableTheme();
+  const diamond = (position: React.CSSProperties) => (
+    <span
+      aria-hidden
+      style={{
+        position: "absolute",
+        width: 9,
+        height: 9,
+        transform: "translate(-50%, -50%) rotate(45deg)",
+        backgroundColor: theme.headerRule,
+        ...position,
+      }}
+    />
+  );
+  return (
+    <div aria-hidden data-royal-frame style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 10,
+          border: `1.5px solid ${theme.headerRule}`,
+          borderRadius: 2,
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          inset: 15,
+          border: `1px solid ${theme.statBorder}`,
+          borderRadius: 2,
+        }}
+      />
+      <div data-royal-corners>
+        {diamond({ left: 10, top: 10 })}
+        {diamond({ left: "calc(100% - 10px)", top: 10 })}
+        {diamond({ left: 10, top: "calc(100% - 10px)" })}
+        {diamond({ left: "calc(100% - 10px)", top: "calc(100% - 10px)" })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Hand-written final standings at the bottom of the sheet: 1st, 2nd and the
  * two shared 3rd places of a single-elimination draw. Deliberately compact —
  * a small 2×2 card in the middle, leaving the bracket the lion's share of the
@@ -1099,6 +1443,8 @@ function ResultsTable({
     : ["نفر اول", "نفر دوم", "نفر سوم (مشترک)", "نفر سوم (مشترک)"];
   const theme = useTableTheme();
   const modern = design === "modern";
+  const royal = design === "royal";
+  const band = modern || royal;
   return (
     <div
       style={{
@@ -1106,23 +1452,27 @@ function ResultsTable({
         maxWidth: 420,
         flexShrink: 0,
         border: `1.5px solid ${theme.resultsBorder}`,
-        borderRadius: modern ? 12 : 10,
+        borderRadius: royal ? 8 : modern ? 12 : 10,
         overflow: "hidden",
         backgroundColor: theme.resultsCellBg,
-        boxShadow: modern ? "0 1px 3px rgba(15, 31, 56, 0.1)" : undefined,
+        boxShadow: royal
+          ? "0 2px 5px rgba(15, 31, 56, 0.14)"
+          : modern
+            ? "0 1px 3px rgba(15, 31, 56, 0.1)"
+            : undefined,
       }}
     >
       <div
         dir="rtl"
         style={{
           display: "flex",
-          alignItems: modern ? "center" : "baseline",
-          justifyContent: modern ? "center" : "space-between",
-          flexDirection: modern ? "column" : undefined,
-          gap: modern ? 1 : 10,
+          alignItems: band ? "center" : "baseline",
+          justifyContent: band ? "center" : "space-between",
+          flexDirection: band ? "column" : undefined,
+          gap: band ? 1 : 10,
           backgroundColor: modern ? theme.matBadgeBg : theme.resultsHeaderBg,
           color: modern ? theme.matBadgeText : theme.resultsHeaderText,
-          padding: modern ? "5px 12px 7px" : "4px 12px",
+          padding: band ? "5px 12px 7px" : "4px 12px",
         }}
       >
         <span
@@ -1130,7 +1480,7 @@ function ResultsTable({
             fontSize: 11.5,
             fontWeight: 700,
             whiteSpace: "nowrap",
-            letterSpacing: modern ? 1.5 : undefined,
+            letterSpacing: royal ? 2 : modern ? 1.5 : undefined,
           }}
         >
           نتایج نهایی
@@ -1145,13 +1495,29 @@ function ResultsTable({
           نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
         </span>
       </div>
-      <div dir="rtl" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", backgroundColor: theme.resultsCellBg }}>
+      <div
+        dir="rtl"
+        style={{
+          position: "relative",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          backgroundColor: theme.resultsCellBg,
+        }}
+      >
+        {/* دورخط داخلی خانه های نتایج — امضای دوخطه طرح تشریفاتی */}
+        {royal && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute"
+            style={{ inset: 2.5, border: `1px solid ${theme.resultsInnerBorder}`, borderRadius: 4 }}
+          />
+        )}
         {ranks.map((rank, index) => (
           <div
             key={rank + index}
             style={{
-              padding: modern ? "4px 14px 7px" : "4px 12px 7px",
-              textAlign: modern ? "center" : undefined,
+              padding: band ? "4px 14px 7px" : "4px 12px 7px",
+              textAlign: band ? "center" : undefined,
               borderTop: index >= 2 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               borderInlineEnd: index % 2 === 0 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               backgroundColor: theme.resultsCellBg,

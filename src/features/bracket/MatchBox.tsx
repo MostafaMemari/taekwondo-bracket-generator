@@ -11,7 +11,7 @@ interface MatchBoxProps {
   dims: LayoutDims
   /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام)؛ مسابقه هم پاس می آید تا برگه تعاملی همسایه اسلات را بشناسد */
   renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
-  /** طرح جعبه — کلاسیک (پیش فرض) یا مدرن: گوشه گردتر و سایه لطیف */
+  /** طرح جعبه — کلاسیک (پیش فرض)، مدرن: گوشه گردتر و سایه لطیف، تشریفاتی: گوشه crisp و سایه عمیق تر */
   design?: SheetLayoutId
 }
 
@@ -25,10 +25,16 @@ interface MatchBoxProps {
  */
 export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classic' }: MatchBoxProps) {
   const theme = useTableTheme()
-  // مدرن: گوشه های گردتر + سایه خیلی لطیف — جعبه ها از کاغذ جدا دیده می شوند
+  // مدرن: گوشه های گردتر + سایه خیلی لطیف — جعبه ها از کاغذ جدا دیده می شوند؛
+  // تشریفاتی: گوشه های جمع و سایه عمیق تر — حال و هوای سند قهرمانی
   const modern = design === 'modern'
-  const boxRadius = modern ? 12 : 8
-  const modernShadow = modern ? '0 1px 3px rgba(15, 31, 56, 0.1)' : undefined
+  const royal = design === 'royal'
+  const boxRadius = royal ? 6 : modern ? 12 : 8
+  const modernShadow = modern
+    ? '0 1px 3px rgba(15, 31, 56, 0.1)'
+    : royal
+      ? '0 2px 5px rgba(15, 31, 56, 0.14)'
+      : undefined
 
   // مسابقه رده بندی باران مدال — سرتیتر «رده بندی» و دو ردیف «بازنده مسابقه N»
   if (match.bronze) {
@@ -76,7 +82,7 @@ export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classi
               height: dims.cardHeight,
             }}
           >
-            {row.loser != null && <LoserRow matchNumber={row.loser} side={row.side} />}
+            {row.loser != null && <LoserRow matchNumber={row.loser} side={row.side} design={design} />}
           </div>
         ))}
       </div>

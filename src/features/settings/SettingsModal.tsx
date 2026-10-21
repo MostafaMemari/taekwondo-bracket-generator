@@ -291,9 +291,9 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               طرح برگه
-              <span className="ms-2 text-xs font-normal text-muted">ساختار سربرگ و جدول عوض می شود — تم های رنگی روی هر دو طرح می نشینند</span>
+              <span className="ms-2 text-xs font-normal text-muted">ساختار سربرگ و جدول عوض می شود — تم های رنگی روی هر سه طرح می نشینند</span>
             </label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2.5">
               {sheetLayouts.map((layout) => (
                 <SheetLayoutCard
                   key={layout.id}
@@ -305,8 +305,9 @@ function SettingsForm({
               ))}
             </div>
             <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
-              طرح، شکل سربرگ و جدول را عوض می کند و تم، رنگ هایش را — طرح مدرن هم
-              همه رنگ هایش را از همان تم می گیرد؛ ماکت ها با تم انتخابی همین لحظه رنگ می گیرند.
+              طرح، شکل سربرگ و جدول را عوض می کند و تم، رنگ هایش را — طرح های
+              مدرن و تشریفاتی هم همه رنگ هایشان را از همان تم می گیرد؛ ماکت ها با
+              تم انتخابی همین لحظه رنگ می گیرند.
             </p>
           </div>
 
@@ -718,7 +719,8 @@ function MatchChipSizeCard({
 /**
  * کارت انتخاب طرح برگه — ماکت کوچک از سربرگ و دو ردیف با خود ساختار طرح
  * (کلاسیک: خط زیر سربرگ و نوار کنار ردیف — مدرن: ریبون بالا، عنوان دو طرف
- * خط، پیل ها و نوار روی ردیف) با رنگ های تم فعلی؛ انتخاب با ذخیره اعمال می شود.
+ * خط، پیل ها و نوار روی ردیف — تشریفاتی: قاب دوخطه، نشان الماسی، مدال های
+ * دورخط و اتصال های ریز) با رنگ های تم فعلی؛ انتخاب با ذخیره اعمال می شود.
  */
 function SheetLayoutCard({
   layout,
@@ -732,6 +734,7 @@ function SheetLayoutCard({
   onSelect: () => void
 }) {
   const modern = layout.id === 'modern'
+  const royal = layout.id === 'royal'
   return (
     <button
       type="button"
@@ -744,9 +747,29 @@ function SheetLayoutCard({
       }`}
     >
       <div
-        className="overflow-hidden rounded-lg border border-line"
-        style={{ backgroundColor: theme.sheetBg }}
+        className="relative overflow-hidden rounded-lg border border-line"
+        style={{
+          backgroundColor: theme.sheetBg,
+          // قاب داخلی ماکت تشریفاتی — دوخطه با فاصله، همان امضای برگه اصلی
+          ...(royal
+            ? { boxShadow: `inset 0 0 0 2px ${theme.sheetBg}, inset 0 0 0 3px ${theme.headerRule}` }
+            : {}),
+        }}
       >
+        {/* نشان الماسی گوشه قاب ماکت تشریفاتی */}
+        {royal && (
+          <span
+            aria-hidden
+            className="absolute rotate-45"
+            style={{
+              width: 5,
+              height: 5,
+              backgroundColor: theme.headerRule,
+              top: 4,
+              insetInlineStart: 4,
+            }}
+          />
+        )}
         {/* ریبون امضای طرح مدرن */}
         {modern && (
           <div aria-hidden style={{ height: 3, backgroundColor: theme.matBadgeBg }} />
@@ -755,8 +778,8 @@ function SheetLayoutCard({
         <div
           className="flex items-center gap-1 px-1.5 py-1"
           style={{
-            borderBottom: modern ? undefined : `1.5px solid ${theme.headerRule}`,
-            backgroundColor: modern ? theme.sheetBg : undefined,
+            borderBottom: modern || royal ? undefined : `1.5px solid ${theme.headerRule}`,
+            backgroundColor: modern || royal ? theme.sheetBg : undefined,
           }}
         >
           {modern && (
@@ -766,11 +789,18 @@ function SheetLayoutCard({
               style={{ border: `1px solid ${theme.chipBorder}`, backgroundColor: theme.chipBg }}
             />
           )}
+          {royal && (
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rotate-45"
+              style={{ backgroundColor: theme.headerRule }}
+            />
+          )}
           <span
             aria-hidden
             className="mx-auto h-1 rounded-full"
             style={{
-              width: modern ? '46%' : '50%',
+              width: royal ? '40%' : modern ? '46%' : '50%',
               backgroundColor: theme.titleText,
               opacity: 0.85,
               boxShadow: modern
@@ -778,7 +808,7 @@ function SheetLayoutCard({
                 : undefined,
             }}
           />
-          {modern ? (
+          {modern || royal ? (
             <span
               aria-hidden
               className="h-2 w-4 shrink-0 rounded-full"
@@ -792,7 +822,7 @@ function SheetLayoutCard({
             />
           )}
         </div>
-        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: نوار لبه بالا + خط دور */}
+        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: نوار لبه بالا؛ تشریفاتی: دورخط داخلی */}
         <div className="space-y-1 p-1.5">
           {(['chong', 'hong'] as const).map((side) => (
             <div
@@ -806,10 +836,15 @@ function SheetLayoutCard({
                       borderInline: `1px solid ${theme.sides[side].borderSoft}`,
                       borderBottom: `1px solid ${theme.sides[side].borderSoft}`,
                     }
-                  : {}),
+                  : royal
+                    ? {
+                        border: `1px solid ${theme.sides[side].borderSoft}`,
+                        boxShadow: `inset 0 0 0 1px ${theme.sides[side].accent}`,
+                      }
+                    : {}),
               }}
             >
-              {!modern && (
+              {!modern && !royal && (
                 <span
                   aria-hidden
                   className="h-full w-[3px] shrink-0"
@@ -823,8 +858,8 @@ function SheetLayoutCard({
                   backgroundColor: theme.nameText,
                   opacity: 0.7,
                   marginInline: 4,
-                  marginInlineStart: modern ? 'auto' : undefined,
-                  marginInlineEnd: modern ? 'auto' : undefined,
+                  marginInlineStart: modern || royal ? 'auto' : undefined,
+                  marginInlineEnd: modern || royal ? 'auto' : undefined,
                 }}
               />
             </div>
