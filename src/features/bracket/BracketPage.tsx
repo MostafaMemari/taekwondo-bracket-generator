@@ -14,6 +14,7 @@ import {
 import { useTournament, isManualGroupId } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
 import { Button } from '../../components/Button.tsx'
+import { BeltSelect } from '../../components/BeltSelect.tsx'
 import { groupTitle } from '../../lib/formatFa.ts'
 import { findSoloParticipant } from '../../lib/soloDraw.ts'
 import { BracketCanvas } from './BracketCanvas.tsx'
@@ -211,12 +212,11 @@ export function BracketPage() {
                 title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
               >
                 کمربند
-                <input
+                <BeltSelect
                   value={tableBeltLabels[draw.groupId] ?? ''}
-                  onChange={(event) => setTableBeltLabel(draw.groupId, event.target.value)}
-                  placeholder="مثلا سبز و آبی"
-                  maxLength={40}
-                  className={`${headerFieldClass} w-32`}
+                  onChange={(value) => setTableBeltLabel(draw.groupId, value)}
+                  ariaLabel="کمربند جدول دستی"
+                  size="md"
                 />
               </label>
               <p className="text-xs leading-5 text-muted">
@@ -239,12 +239,11 @@ export function BracketPage() {
                 title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
               >
                 کمربند
-                <input
+                <BeltSelect
                   value={tableBeltLabels[draw.groupId] ?? ''}
-                  onChange={(event) => setTableBeltLabel(draw.groupId, event.target.value)}
-                  placeholder="مثلا سبز و آبی"
-                  maxLength={40}
-                  className={`${headerFieldClass} w-32`}
+                  onChange={(value) => setTableBeltLabel(draw.groupId, value)}
+                  ariaLabel="کمربند جدول"
+                  size="md"
                 />
               </label>
             </div>

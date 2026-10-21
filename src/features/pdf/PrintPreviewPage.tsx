@@ -3,6 +3,7 @@ import { useScheduleModel } from '../../lib/hooks.ts'
 import { BracketSheet } from './BracketSheet.tsx'
 import { PrintToolbar } from './PrintToolbar.tsx'
 import { toFaDigits } from '../../lib/formatFa.ts'
+import { beltDisplayValue } from '../../lib/belts.ts'
 
 interface PrintPreviewPageProps {
   /** 'all' or a groupId */
@@ -47,7 +48,7 @@ export function PrintPreviewPage({ scope }: PrintPreviewPageProps) {
             matchNumbers={matchNumbers}
             matLabel={info?.matLabel || undefined}
             attendTime={info?.attendTime || undefined}
-            beltLabel={tableBeltLabels[draw.groupId] || undefined}
+            beltLabel={beltDisplayValue(tableBeltLabels[draw.groupId]) || undefined}
           />
         )
       })}

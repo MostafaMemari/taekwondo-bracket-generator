@@ -11,8 +11,9 @@ interface GroupRowProps {
 }
 
 /**
- * یک ردیف فشرده در فهرست وزن های هر رده سنی — کل ردیف برای بازکردن جدول
- * کلیک پذیر است و دو دکمه کوچک خروجی عکس/PDF در انتهای آن نشسته اند.
+ * یک کارت فشرده در شبکه وزن های هر رده سنی — همه چیز پشت هم: عنوان وزن و
+ * شمارنده ها و دو دکمه عکس/PDF در همان کارت، بدون فاصله خالی بلند. کلیک روی
+ * خود کارت جدول را باز می کند و دکمه ها با توقف رویداد سر کارش می مانند.
  */
 export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
   const exportGroupPdf = useTournament((state) => state.exportGroupPdf);
@@ -26,28 +27,27 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
   const participantCount = solo ? 1 : draw.group.participantIds.length;
 
   return (
-    <div className="group relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-turf">
-      <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-right">
-        <span className="shrink-0 font-display text-lg leading-7 text-ink-900">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="group relative flex cursor-pointer flex-col gap-2 rounded-xl border border-line bg-surface p-3.5 transition-colors hover:border-mat-400 hover:bg-turf focus-visible:outline focus-visible:outline-2 focus-visible:outline-mat-600"
+    >
+      <div className="flex items-center gap-2">
+        <span className="font-display text-lg leading-7 text-ink-900">
           وزن {toFaDigits(draw.group.weightCategory)}
         </span>
-        {solo ? (
-          <span className="text-xs leading-5 text-muted">
-            تنها شرکت کننده: <span className="font-bold text-ink-800">{solo.fullName}</span> — مربی:{" "}
-            {solo.coachName} • بدون مسابقه، صدرنشین خودکار
-          </span>
-        ) : (
-          <span className="truncate text-xs text-muted">
-            {toFaDigits(participantCount)} نفر •{" "}
-            {toFaDigits(realMatchCount(draw))} مسابقه
-            {draw.structure.roundCount > 1 && <> • {toFaDigits(draw.structure.roundCount)} دور</>}
-          </span>
-        )}
-      </button>
-      <div className="flex shrink-0 items-center gap-0.5">
+        <span className="flex-1" />
         {(isManual || isMedalRain) && (
           <button
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
               const message = isManual
                 ? "این جدول دستی با همه خانه هایش حذف شود؟"
                 : "این جدول باران مدال با همه خانه هایش حذف شود؟";
@@ -56,33 +56,52 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
                 else removeMedalRainTable(draw.groupId);
               }
             }}
-            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-hogu-100 hover:text-hogu-600"
+            className="flex items-center rounded-lg p-1.5 text-muted transition-colors hover:bg-hogu-100 hover:text-hogu-600"
             title={isManual ? "حذف این جدول دستی" : "حذف این جدول باران مدال"}
           >
             <Trash2 size={14} />
           </button>
         )}
+        <ChevronLeft
+          size={16}
+          className="shrink-0 text-line-strong transition-colors group-hover:text-mat-600"
+        />
+      </div>
+      {solo ? (
+        <p className="text-xs leading-5 text-muted">
+          تنها شرکت کننده: <span className="font-bold text-ink-800">{solo.fullName}</span> — مربی:{" "}
+          {solo.coachName} • بدون مسابقه، صدرنشین خودکار
+        </p>
+      ) : (
+        <p className="text-xs leading-5 text-muted">
+          {toFaDigits(participantCount)} نفر • {toFaDigits(realMatchCount(draw))} مسابقه
+          {draw.structure.roundCount > 1 && <> • {toFaDigits(draw.structure.roundCount)} دور</>}
+        </p>
+      )}
+      <div className="flex items-center gap-1.5 border-t border-line pt-2">
         <button
-          onClick={() => exportGroupImage(draw.groupId)}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-mat-50 hover:text-mat-700"
+          onClick={(event) => {
+            event.stopPropagation();
+            exportGroupImage(draw.groupId);
+          }}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-mat-50 hover:text-mat-700"
           title="خروجی عکس PNG این وزن — مناسب ارسال در تلگرام"
         >
-          <ImageDown size={14} />
-          <span className="hidden sm:inline">عکس</span>
+          <ImageDown size={13} />
+          عکس
         </button>
         <button
-          onClick={() => exportGroupPdf(draw.groupId)}
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-mat-50 hover:text-mat-700"
+          onClick={(event) => {
+            event.stopPropagation();
+            exportGroupPdf(draw.groupId);
+          }}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-mat-50 hover:text-mat-700"
           title="خروجی PDF این وزن"
         >
-          <FileDown size={14} />
-          <span className="hidden sm:inline">PDF</span>
+          <FileDown size={13} />
+          PDF
         </button>
       </div>
-      <ChevronLeft
-        size={16}
-        className="shrink-0 text-line-strong transition-colors group-hover:text-mat-600"
-      />
     </div>
   );
 }

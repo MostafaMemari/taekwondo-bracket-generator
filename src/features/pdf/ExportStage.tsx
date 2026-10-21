@@ -9,6 +9,7 @@ import { exportDrawsToPdf } from './exportDrawsToPdf.ts'
 import { exportSheetsAsA4Images } from './exportGroupImage.ts'
 import { renderWeightTitle } from '../../lib/formatFa.ts'
 import { tableThemeById } from '../../lib/tableThemes.ts'
+import { beltDisplayValue } from '../../lib/belts.ts'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
 
@@ -145,7 +146,7 @@ function ExportCapture({
               matchNumbers={matchNumbers}
               matLabel={info?.matLabel || undefined}
               attendTime={info?.attendTime || undefined}
-              beltLabel={tableBeltLabels[draw.groupId] || undefined}
+              beltLabel={beltDisplayValue(tableBeltLabels[draw.groupId]) || undefined}
             />
           )
         })}

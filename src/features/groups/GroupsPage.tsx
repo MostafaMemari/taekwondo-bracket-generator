@@ -114,17 +114,16 @@ export function GroupsPage() {
               </span>
               <span aria-hidden className="h-px flex-1 bg-line" />
             </div>
-            <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-              <div className="divide-y divide-line">
-                {section.draws.map((draw) => (
-                  <GroupRow
-                    key={draw.groupId}
-                    draw={draw}
-                    solo={findSoloParticipant(draw, participantsById) ?? undefined}
-                    onOpen={() => openBracket(draw.groupId)}
-                  />
-                ))}
-              </div>
+            {/* شبکه کارت های وزن ها — هر وزن یک کارت فشرده با عکس/PDF کنار خودش */}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {section.draws.map((draw) => (
+                <GroupRow
+                  key={draw.groupId}
+                  draw={draw}
+                  solo={findSoloParticipant(draw, participantsById) ?? undefined}
+                  onOpen={() => openBracket(draw.groupId)}
+                />
+              ))}
             </div>
           </section>
         ))}

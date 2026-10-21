@@ -19,6 +19,7 @@ import { groupByCategory } from '../src/core/grouping/groupByCategory.ts'
 import { buildSchedule, flattenGroupMatches } from '../src/core/schedule/schedule.ts'
 import type { BracketStructureNode, Participant } from '../src/core/types.ts'
 import { realMatchCount } from '../src/lib/drawStats.ts'
+import { beltPresets, resolveBeltLabel } from '../src/lib/belts.ts'
 import {
   classicTheme,
   tableThemeById,
@@ -876,6 +877,96 @@ check('match chip: store migration keeps a saved style and repairs junk',
       junk.matchChipStyle?.shape === 'circle' &&
       junk.matchChipStyle.color === null &&
       empty.matchChipStyle?.color === null
+  })(),
+)
+
+/* ————— کمربندها — فهرست آماده، اولویت جدول/بازه، باگ فاصله ————— */
+
+check('belts: preset list is unique, ordered and free of ZWNJ',
+  new Set(beltPresets).size === beltPresets.length &&
+    beltPresets.includes('سبز و آبی') &&
+    beltPresets.includes('زرد و سبز') &&
+    beltPresets.includes('قرمز و مشکی') &&
+    beltPresets.every((belt) => !belt.includes('\u200c')) &&
+    beltPresets[0] === 'سفید' &&
+    beltPresets[beltPresets.length - 1] === 'مشکی',
+)
+
+check('belts: table belt wins over session belt, empty falls through',
+  resolveBeltLabel('سبز و آبی', 'زرد') === 'سبز و آبی' &&
+    resolveBeltLabel(undefined, 'زرد') === 'زرد' &&
+    resolveBeltLabel('', 'زرد') === 'زرد' &&
+    resolveBeltLabel('  ', 'زرد') === 'زرد' &&
+    resolveBeltLabel(undefined, undefined) === '' &&
+    resolveBeltLabel(' زرد ', undefined) === 'زرد',
+)
+
+check('belts: store keeps raw value so typing a space survives (بودن فاصله)',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    // بعد از هر تغییر باید getState تازه بگیریم — اسنپ شات قدیمی خوانا نیست
+    const setTableBelt = (groupId: string, value: string) =>
+      useTournament.getState().setTableBeltLabel(groupId, value)
+    const belts = () =>
+      (useTournament.getState() as {
+        tableBeltLabels: Record<string, string>
+        sessionBeltLabels: Record<string, string>
+      })
+    // تایپ حرف به حرف «سبز و آبی» — با هر فاصله مقدار خام باید سر جایش بماند
+    setTableBelt('g1', 'سبز')
+    setTableBelt('g1', 'سبز ')
+    setTableBelt('g1', 'سبز و')
+    setTableBelt('g1', 'سبز و آبی')
+    const typed = belts().tableBeltLabels['g1']
+    setTableBelt('g1', '   ')
+    const cleared = belts().tableBeltLabels['g1'] === undefined
+    useTournament.getState().setSessionBeltLabel('s1', 'قرمز و مشکی ')
+    const sessionRaw = belts().sessionBeltLabels['s1'] === 'قرمز و مشکی '
+    return typed === 'سبز و آبی' && cleared && sessionRaw
+  })(),
+)
+
+check('belts: store migration v15 keeps saved belts of tables and sessions',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const saved = migrate({
+      tableBeltLabels: { g1: 'سبز و آبی' },
+      sessionBeltLabels: { s1: 'زرد' },
+    }) as { tableBeltLabels?: Record<string, string>; sessionBeltLabels?: Record<string, string> }
+    const empty = migrate({}) as {
+      tableBeltLabels?: Record<string, string>
+      sessionBeltLabels?: Record<string, string>
+    }
+    return saved.tableBeltLabels?.g1 === 'سبز و آبی' &&
+      saved.sessionBeltLabels?.s1 === 'زرد' &&
+      Object.keys(empty.tableBeltLabels ?? { x: 1 }).length === 0 &&
+      Object.keys(empty.sessionBeltLabels ?? { x: 1 }).length === 0
   })(),
 )
 

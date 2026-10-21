@@ -60,6 +60,8 @@ import { compareByWeightLabel } from '../../lib/weightSorting.ts'
 import { realMatchCount, groupOptionLabel } from '../../lib/drawStats.ts'
 import { sideTheme } from '../bracket/sideColors.ts'
 import { coachRowsOf, slotIdOfParticipant } from '../../lib/coachRows.ts'
+import { BeltSelect } from '../../components/BeltSelect.tsx'
+import { resolveBeltLabel } from '../../lib/belts.ts'
 import { CoachRoster } from '../bracket/CoachRoster.tsx'
 import { ScheduleSheet } from './ScheduleSheet.tsx'
 import { exportScheduleBundlePdf, exportScheduleImage, exportScheduleToPdf } from './exportSchedule.ts'
@@ -70,6 +72,7 @@ export function SchedulePage() {
   const draws = useTournament((state) => state.draws)
   const meta = useTournament((state) => state.meta)
   const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const sessionBeltLabels = useTournament((state) => state.sessionBeltLabels)
   const tableThemeId = useTournament((state) => state.tableThemeId)
   const scheduleSessions = useTournament((state) => state.scheduleSessions)
   const openGroups = useTournament((state) => state.openGroups)
@@ -180,6 +183,7 @@ export function SchedulePage() {
           sheets.push({
             groupId: weight.groupId,
             draw,
+            sessionId: scheduled.session.id,
             note: sheetScheduleNote(mat.mat.label, scheduled.session),
             matLabel: mat.mat.label,
             attendTime: scheduled.session.timeFrom,
@@ -456,7 +460,12 @@ export function SchedulePage() {
                     matchNumbers={matchNumbers}
                     matLabel={imageSheet.matLabel}
                     attendTime={imageSheet.attendTime}
-                    beltLabel={tableBeltLabels[imageSheet.groupId] || undefined}
+                    beltLabel={
+                      resolveBeltLabel(
+                        tableBeltLabels[imageSheet.groupId],
+                        sessionBeltLabels[imageSheet.sessionId],
+                      ) || undefined
+                    }
                   />
                 ) : (
                   activeTabSheets.map((sheet, index) => (
@@ -470,7 +479,12 @@ export function SchedulePage() {
                       matchNumbers={matchNumbers}
                       matLabel={sheet.matLabel}
                       attendTime={sheet.attendTime}
-                      beltLabel={tableBeltLabels[sheet.groupId] || undefined}
+                      beltLabel={
+                        resolveBeltLabel(
+                          tableBeltLabels[sheet.groupId],
+                          sessionBeltLabels[sheet.sessionId],
+                        ) || undefined
+                      }
                     />
                   ))
                 )}
@@ -508,6 +522,8 @@ export function SchedulePage() {
 interface ScheduledSheetInfo {
   groupId: string
   draw: GroupDraw
+  /** بازه زمانی صاحب این برگه — برای کمربند سطح بازه */
+  sessionId: string
   note: string
   matLabel: string
   attendTime: string
@@ -555,8 +571,10 @@ function TablesView({
   onGoPlan,
   onExportSheetImage,
 }: TablesViewProps) {
-  // برچسب دستی کمربند هر جدول — روی سربرگ برگه ها می نشیند
+  // برچسب دستی کمربند هر جدول و هر بازه — روی سربرگ برگه ها می نشیند؛
+  // کمربند خود جدول بر کمربند بازه مقدم است
   const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const sessionBeltLabels = useTournament((state) => state.sessionBeltLabels)
   const setTableBeltLabel = useTournament((state) => state.setTableBeltLabel)
   // نوار مربی های هر برگه — همیشه حداکثر یکی باز است
   const [coachOpenFor, setCoachOpenFor] = useState<string | null>(null)
@@ -705,15 +723,14 @@ function TablesView({
               <span className="text-[11px] text-muted">{sheet.note}</span>
               <label
                 className="flex items-center gap-1 text-[11px] text-muted"
-                title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
+                title="کمربند دستی این جدول — اگر بازه کمربند داشته باشد جدولی که کمربند خودش را ندارد همان را نشان می دهد"
               >
                 کمربند
-                <input
+                <BeltSelect
                   value={tableBeltLabels[sheet.groupId] ?? ''}
-                  onChange={(event) => setTableBeltLabel(sheet.groupId, event.target.value)}
-                  placeholder="مثلا سبز و آبی"
-                  maxLength={40}
-                  className="w-24 rounded-lg border border-line-strong bg-white px-2 py-1 text-[11px] font-medium text-ink-900 outline-none transition-colors focus:border-mat-600 placeholder:font-normal placeholder:text-slate-400"
+                  onChange={(value) => setTableBeltLabel(sheet.groupId, value)}
+                  emptyLabel="همراه بازه"
+                  ariaLabel={`کمربند جدول ${toFaDigits(ordinal)}`}
                 />
               </label>
               <span className="flex-1" />
@@ -777,7 +794,12 @@ function TablesView({
                 interactiveSwaps
                 matLabel={sheet.matLabel}
                 attendTime={sheet.attendTime}
-                beltLabel={tableBeltLabels[sheet.groupId] || undefined}
+                beltLabel={
+                  resolveBeltLabel(
+                    tableBeltLabels[sheet.groupId],
+                    sessionBeltLabels[sheet.sessionId],
+                  ) || undefined
+                }
               />
             </div>
           </div>
@@ -909,6 +931,14 @@ function SessionEditor({
           className="w-24 rounded-lg border border-line bg-turf px-2.5 py-1.5 text-center text-sm text-ink-900 placeholder:text-muted/60 focus:border-mat-600 focus:bg-surface focus:outline-none"
         />
         <span aria-hidden className="mx-1 h-5 w-px bg-line" />
+        <label
+          className="flex items-center gap-1.5 text-xs text-muted"
+          title="کمربند همه جدول های این بازه — مثل ساعت یک بار این جا می گذاری و روی همه می نشیند؛ جدولی که کمربند خودش را داشته باشد همان را نشان می دهد"
+        >
+          کمربند
+          <SessionBeltField sessionId={session.id} />
+        </label>
+        <span aria-hidden className="mx-1 h-5 w-px bg-line" />
         <span className="text-xs text-muted">
           {(scheduled?.matchCount ?? 0) > 0 && `${toFaDigits(scheduled?.matchCount ?? 0)} مسابقه`}
         </span>
@@ -954,6 +984,25 @@ function SessionEditor({
         افزودن زمین
       </button>
     </div>
+  )
+}
+
+/**
+ * کمربند یک بازه — دقیقا مثل ساعت بازه: یک بار برای کل بازه انتخاب می شود و
+ * روی سربرگ همه جدول های همان بازه می نشیند؛ جدولی که کمربند مخصوص خودش را
+ * داشته باشد (در حالت جدولی) همان را نشان می دهد.
+ */
+function SessionBeltField({ sessionId }: { sessionId: string }) {
+  const sessionBeltLabels = useTournament((state) => state.sessionBeltLabels)
+  const setSessionBeltLabel = useTournament((state) => state.setSessionBeltLabel)
+  return (
+    <BeltSelect
+      value={sessionBeltLabels[sessionId] ?? ''}
+      onChange={(value) => setSessionBeltLabel(sessionId, value)}
+      emptyLabel="—"
+      ariaLabel="کمربند بازه"
+      size="md"
+    />
   )
 }
 

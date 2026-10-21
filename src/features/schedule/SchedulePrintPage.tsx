@@ -5,6 +5,7 @@ import { useTournament } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
 import { groupTitle, toFaDigits } from '../../lib/formatFa.ts'
 import { realMatchCount } from '../../lib/drawStats.ts'
+import { resolveBeltLabel } from '../../lib/belts.ts'
 import { ScheduleSheet } from './ScheduleSheet.tsx'
 import { exportScheduleBundlePdf, type SchedulePrintMode } from './exportSchedule.ts'
 import { BracketSheet } from '../pdf/BracketSheet.tsx'
@@ -36,6 +37,7 @@ export function SchedulePrintPage() {
   const draws = useTournament((state) => state.draws)
   const meta = useTournament((state) => state.meta)
   const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const sessionBeltLabels = useTournament((state) => state.sessionBeltLabels)
   const [mode, setMode] = useState<SchedulePrintMode>(readModeFromHash)
   const [pdfBusy, setPdfBusy] = useState(false)
   const { participantsById, built, matchNumbers, manualNumbers } = useScheduleModel()
@@ -47,6 +49,7 @@ export function SchedulePrintPage() {
     const list: Array<{
       groupId: string
       draw: GroupDraw
+      sessionId: string
       note: string
       matLabel: string
       attendTime: string
@@ -59,6 +62,7 @@ export function SchedulePrintPage() {
           list.push({
             groupId: weight.groupId,
             draw,
+            sessionId: scheduled.session.id,
             note: sheetScheduleNote(mat.mat.label, scheduled.session),
             matLabel: mat.mat.label,
             attendTime: scheduled.session.timeFrom,
@@ -169,7 +173,12 @@ export function SchedulePrintPage() {
                 matchNumbers={matchNumbers}
                 matLabel={sheet.matLabel}
                 attendTime={sheet.attendTime}
-                beltLabel={tableBeltLabels[sheet.groupId] || undefined}
+                beltLabel={
+                  resolveBeltLabel(
+                    tableBeltLabels[sheet.groupId],
+                    sessionBeltLabels[sheet.sessionId],
+                  ) || undefined
+                }
               />
             </div>
           ))

@@ -143,8 +143,15 @@ interface TournamentState {
   /**
    * کمربند دستی هر جدول — مثلا «سبز و آبی» — برای همه انواع جدول (اکسل،
    * دستی، باران مدال) و به شکل یک بج کوچک کنار عنوان وزن روی سربرگ برگه.
+   * مقدار خام همان تایپ کاربر است (بدون trim) تا تایپ فاصله در ورودی روان بماند.
    */
   tableBeltLabels: Record<string, string>
+  /**
+   * کمربند هر بازه زمانی — مثل ساعت: یک بار کنار ساعت بازه انتخاب می شود و
+   * روی همه جدول های همان بازه می نشیند؛ جدولی که کمربند خودش را داشته باشد
+   * همان را نشان می دهد (کمربند جدول بر کمربند بازه مقدم است).
+   */
+  sessionBeltLabels: Record<string, string>
 
   importRoster: (fileName: string, roster: ParsedRoster) => void
   clearAll: () => void
@@ -211,10 +218,16 @@ interface TournamentState {
   /** حذف کامل یک جدول باران مدال با شرکت کننده هایش */
   removeMedalRainTable: (groupId: string) => void
   /**
-   * کمربند دستی یک جدول — کاربر خودش تایپ می کند (مثلا «سبز و آبی»)؛ مقدار
-   * خالی یعنی پاک کردن. روی سربرگ برگه چاپ/عکس به شکل بج کوچک می نشیند.
+   * کمربند دستی یک جدول — از select کمربندها یا تایپ دلخواه؛ مقدار خالی
+   * یعنی پاک کردن. مقدار بدون trim ذخیره می شود تا تایپ فاصله در وسط/آخر
+   * عبارت مثل «سبز و آبی » هرگز گم نشود.
    */
   setTableBeltLabel: (groupId: string, value: string) => void
+  /**
+   * کمربند یک بازه زمانی — روی همه جدول های همان بازه می نشیند (مثل ساعت
+   * بازه)؛ مقدار خالی یعنی پاک کردن.
+   */
+  setSessionBeltLabel: (sessionId: string, value: string) => void
   /** تم بصری جدول ها — فقط ظاهر برگه ها عوض می شود، از تنظیمات */
   tableThemeId: TableThemeId
   setTableThemeId: (id: TableThemeId) => void
@@ -262,6 +275,7 @@ export const useTournament = create<TournamentState>()(
       manualTables: {},
       medalRainTables: {},
       tableBeltLabels: {},
+      sessionBeltLabels: {},
       // تم ظاهری یک انتخاب شخصی است — با ورود فهرست جدید عوض نمی شود
       tableThemeId: 'classic' as TableThemeId,
 
@@ -289,6 +303,7 @@ export const useTournament = create<TournamentState>()(
           manualTables: {},
           medalRainTables: {},
           tableBeltLabels: {},
+          sessionBeltLabels: {},
         }),
 
       clearAll: () =>
@@ -306,6 +321,7 @@ export const useTournament = create<TournamentState>()(
           manualTables: {},
           medalRainTables: {},
           tableBeltLabels: {},
+          sessionBeltLabels: {},
         }),
 
       openGroups: () => set({ page: 'groups' }),
@@ -406,8 +422,15 @@ export const useTournament = create<TournamentState>()(
         set({ scheduleSessions: [...get().scheduleSessions, session] })
       },
 
-      removeScheduleSession: (sessionId) =>
-        set({ scheduleSessions: get().scheduleSessions.filter((s) => s.id !== sessionId) }),
+      removeScheduleSession: (sessionId) => {
+        // کمربند بازه هم با بازه می میرد
+        const sessionBelts = { ...get().sessionBeltLabels }
+        delete sessionBelts[sessionId]
+        set({
+          scheduleSessions: get().scheduleSessions.filter((s) => s.id !== sessionId),
+          sessionBeltLabels: sessionBelts,
+        })
+      },
 
       updateScheduleSession: (sessionId, patch) =>
         set({
@@ -728,12 +751,21 @@ export const useTournament = create<TournamentState>()(
         })
       },
 
+      // مقدار خام ذخیره می شود — trim فقط هنگام نمایش (belts.ts). اگر این جا
+      // trim می شد، تایپ فاصله آخر عبارت مثل «سبز و آبی » هر لحظه پاک می شد
+      // و کاربر هرگز نمی توانست فاصله بدهد.
       setTableBeltLabel: (groupId, value) => {
-        const text = value.trim()
         const next = { ...get().tableBeltLabels }
-        if (text) next[groupId] = text
+        if (value.trim()) next[groupId] = value
         else delete next[groupId]
         set({ tableBeltLabels: next })
+      },
+
+      setSessionBeltLabel: (sessionId, value) => {
+        const next = { ...get().sessionBeltLabels }
+        if (value.trim()) next[sessionId] = value
+        else delete next[sessionId]
+        set({ sessionBeltLabels: next })
       },
 
       removeMedalRainTable: (groupId) => {
@@ -759,7 +791,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 14,
+      version: 15,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -776,6 +808,8 @@ export const useTournament = create<TournamentState>()(
         //      v12: تم جدول ها — ذخیره های قدیمی کلاسیک شروع می کنند
         //      v13: ظاهر شماره مسابقه — ذخیره های قدیمی دایره پر همراه تم
         //      v14: اندازه بج شماره — ذخیره های قدیمی معمولی
+        //      v15: کمربند بازه زمانی + کمربند جدول دیگر trim نمی شود
+        //           (باگ «نمی گذارد فاصله بدهم»)
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -816,6 +850,10 @@ export const useTournament = create<TournamentState>()(
             state.tableBeltLabels && typeof state.tableBeltLabels === 'object'
               ? state.tableBeltLabels
               : {},
+          sessionBeltLabels:
+            state.sessionBeltLabels && typeof state.sessionBeltLabels === 'object'
+              ? state.sessionBeltLabels
+              : {},
           tableThemeId: isTableThemeId(state.tableThemeId) ? state.tableThemeId : 'classic',
           matchChipStyle: normalizeMatchChipStyle(state.matchChipStyle),
           matchChipSize: normalizeMatchChipSize(state.matchChipSize),
@@ -835,6 +873,7 @@ export const useTournament = create<TournamentState>()(
         manualTables: state.manualTables,
         medalRainTables: state.medalRainTables,
         tableBeltLabels: state.tableBeltLabels,
+        sessionBeltLabels: state.sessionBeltLabels,
         tableThemeId: state.tableThemeId,
         matchChipStyle: state.matchChipStyle,
         matchChipSize: state.matchChipSize,
