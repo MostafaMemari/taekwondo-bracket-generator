@@ -161,6 +161,13 @@ interface TournamentState {
   moveScheduleMat: (sessionId: string, matId: string, direction: -1 | 1) => void
   /** وزن را به زمین اضافه می کند — اگر جای دیگری باشد جابه جا می شود */
   toggleScheduleGroup: (sessionId: string, matId: string, groupId: string) => void
+  /** وزن را به زمین مقصد می برد — از هر زمین/بازه ای که باشد برداشته می شود */
+  moveScheduleGroup: (sessionId: string, matId: string, groupId: string) => void
+  /**
+   * قرعه کشی دوباره یک وزن — همان هنرجوها با چیدمان تازه؛ قواعد جدا ماندن
+   * مربی ها و اولویت استراحت سر جایش است. جدول های دستی قرعه ندارند.
+   */
+  redrawGroup: (groupId: string) => void
 
   /** ساخت جدول دستی خالی — همان مسیر قرعه کشی داده واقعی */
   createManualTable: (input: { size: number; title: string; matLabel: string; attendTime: string }) => void
@@ -442,6 +449,52 @@ export const useTournament = create<TournamentState>()(
             return { ...session, mats }
           }),
         }),
+
+      moveScheduleGroup: (sessionId, matId, groupId) =>
+        set({
+          scheduleSessions: get().scheduleSessions.map((session) => ({
+            ...session,
+            mats: session.mats.map((mat) => {
+              const without = mat.groupIds.filter((id) => id !== groupId)
+              return session.id === sessionId && mat.id === matId
+                ? { ...mat, groupIds: [...without, groupId] }
+                : { ...mat, groupIds: without }
+            }),
+          })),
+        }),
+
+      redrawGroup: (groupId) => {
+        const draw = get().draws[groupId]
+        if (!draw || isManualGroupId(groupId)) return
+        const participantsById: Record<string, Participant> = {}
+        for (const participant of get().participants) participantsById[participant.id] = participant
+        const members = draw.group.participantIds
+          .map((id) => participantsById[id])
+          .filter((participant): participant is Participant => Boolean(participant))
+        if (members.length === 0) return
+        // بُر زدن فیشر-یتس — چون generateGroupDraw ورودی را بر اساس sourceRow
+        // مرتب می کند، ترتیب تازه با بازشمردن sourceRow موقت تزریق می شود؛
+        // قواعد جدا ماندن مربی ها و اولویت استراحت سر جایشان می مانند
+        const shuffled = [...members]
+        for (let index = shuffled.length - 1; index > 0; index -= 1) {
+          const swap = Math.floor(Math.random() * (index + 1))
+          ;[shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]]
+        }
+        const renumbered = shuffled.map((participant, index) => ({
+          ...participant,
+          sourceRow: index,
+        }))
+        const pool = { ...participantsById }
+        for (const participant of renumbered) pool[participant.id] = participant
+        const bronze = Boolean(get().medalRainTables[groupId]?.bronze)
+        const next = generateGroupDraw(
+          { ...draw.group, participantIds: renumbered.map((participant) => participant.id) },
+          pool,
+          tournamentRules,
+          { bronze },
+        )
+        set({ draws: { ...get().draws, [groupId]: next } })
+      },
 
       createManualTable: ({ size, title, matLabel, attendTime }) => {
         const baseTitle = title.trim() || 'بدون عنوان'

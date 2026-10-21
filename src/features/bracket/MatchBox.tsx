@@ -8,8 +8,8 @@ interface MatchBoxProps {
   match: LayoutMatch
   roundCount: number
   dims: LayoutDims
-  /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام) */
-  renderLeaf: (leaf: PlanLeaf | null, side: SlotSide) => ReactNode
+  /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام)؛ مسابقه هم پاس می آید تا برگه تعاملی همسایه اسلات را بشناسد */
+  renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
 }
 
 const LINE = '#cbd5e1'
@@ -112,7 +112,7 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
           }}
         >
           {/* گوشه های بی نام جعبه های میانی — ردیف ساکت رنگی، فینال پررنگ تر */}
-          {row.leaf ? renderLeaf(row.leaf, row.side) : <PositionRow side={row.side} emphasis={isFinal} />}
+          {row.leaf ? renderLeaf(row.leaf, row.side, match) : <PositionRow side={row.side} emphasis={isFinal} />}
         </div>
       ))}
     </div>

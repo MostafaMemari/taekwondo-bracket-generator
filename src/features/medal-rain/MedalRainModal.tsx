@@ -3,6 +3,7 @@ import { ClipboardPaste, Medal, Plus, Shuffle, Trash2, Trophy, X } from 'lucide-
 import { useTournament } from '../../store/tournamentStore.ts'
 import { toFaDigits } from '../../lib/formatFa.ts'
 import { Button } from '../../components/Button.tsx'
+import { FitText } from '../../components/FitText.tsx'
 import {
   medalRainPoolSizes,
   splitMedalRainPools,
@@ -351,8 +352,13 @@ export function MedalRainModal({ open, onClose }: MedalRainModalProps) {
                                 : 'flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-right transition-colors hover:border-mat-600'
                             }
                           >
-                            <span className="min-w-0 truncate text-xs font-bold text-ink-900">
-                              {athlete.fullName}
+                            <span className="min-w-0 flex-1">
+                              <FitText
+                                text={athlete.fullName}
+                                baseSize={12}
+                                minSize={8.5}
+                                className="font-bold text-ink-900"
+                              />
                             </span>
                             {athlete.coachName && (
                               <span className="shrink-0 text-[10.5px] text-muted">

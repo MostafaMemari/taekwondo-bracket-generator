@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { GroupDraw, Participant } from "../../core/types.ts";
 import {
   buildStagedPrintPlans,
@@ -7,6 +8,7 @@ import {
   fitPrintDims,
   type BracketLayout,
   type LayoutDims,
+  type LayoutMatch,
   type PlanLeaf,
   type SlotSide,
 } from "../../core/bracket/layout.ts";
@@ -77,6 +79,14 @@ interface BracketSheetProps {
   matLabel?: string;
   /** ساعت حضور این برگه — فقط یک زمان (ساعت شروع بازه)، مثلا «۸:۰۰» */
   attendTime?: string;
+  /**
+   * حالت تعاملی دوم (پیش نمایش «حالت جدولی»): ردیف هر هنرجو قابل کشیدن و هر
+   * خانه قابل رها کردن است — جای دو هنرجو عوض می شود؛ رها کردن روی گوشه
+   * «استراحت» هم استراحت را به هنرجوی کشیده شده منتقل می کند (تعویض با صاحب
+   * کنونی استراحت). فقط برای تعویض داخل همان جدول — رها کردن روی جدول دیگر
+   * بی اثر است.
+   */
+  interactiveSwaps?: boolean;
 }
 
 export function BracketSheet({
@@ -90,6 +100,7 @@ export function BracketSheet({
   editableNumbers = false,
   matLabel,
   attendTime,
+  interactiveSwaps = false,
 }: BracketSheetProps) {
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
   const withResults = variant === "print" && draw.structure.roundCount > 0;
@@ -114,15 +125,39 @@ export function BracketSheet({
     [draw.structure, wholeDims],
   );
 
-  function renderLeaf(leaf: PlanLeaf | null, side: SlotSide, dims: LayoutDims) {
+  function renderLeaf(
+    leaf: PlanLeaf | null,
+    side: SlotSide,
+    dims: LayoutDims,
+    match?: LayoutMatch,
+  ) {
     if (leaf?.kind === "winner") return <WinnerRow matchNumber={leaf.matchNumber} side={side} />;
     if (leaf?.kind !== "slot") return <PositionRow side={side} />;
     const occupant = draw.assignments[leaf.slotId];
-    if (occupant.kind === "bye") return <ByeRow side={side} />;
+    if (occupant.kind === "bye") {
+      // رها کردن هنرجو روی گوشه استراحت = انتقال استراحت: تعویض با صاحب کنونی
+      // استراحت (هنرجوی خانه همسایه همین مسابقه)
+      if (interactiveSwaps && match) {
+        const siblingSlotId =
+          match.topSlotId === leaf.slotId ? match.bottomSlotId : match.topSlotId;
+        const sibling = siblingSlotId ? draw.assignments[siblingSlotId] : undefined;
+        if (siblingSlotId && sibling?.kind === "participant") {
+          return (
+            <SheetDropZone
+              dropId={`${draw.groupId}::${siblingSlotId}`}
+              hint="رها کردن هنرجو اینجا، استراحت را به او می دهد و صاحب کنونی استراحت جای او می نشیند"
+            >
+              <ByeRow side={side} />
+            </SheetDropZone>
+          );
+        }
+      }
+      return <ByeRow side={side} />;
+    }
     const participant =
       occupant.kind === "participant" ? participantsById.get(occupant.participantId) : undefined;
     if (!participant) return <PositionRow side={side} />;
-    return (
+    const row = (
       <AthleteRow
         participant={participant}
         side={side}
@@ -130,6 +165,18 @@ export function BracketSheet({
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
       />
+    );
+    if (!interactiveSwaps) return row;
+    return (
+      <SheetDropZone dropId={`${draw.groupId}::${leaf.slotId}`}>
+        <SheetDragChip
+          groupId={draw.groupId}
+          slotId={leaf.slotId}
+          participant={participant}
+        >
+          {row}
+        </SheetDragChip>
+      </SheetDropZone>
     );
   }
 
@@ -379,7 +426,7 @@ export function BracketSheet({
                 match={match}
                 roundCount={draw.structure.roundCount}
                 dims={dims}
-                renderLeaf={(leaf, side) => renderLeaf(leaf, side, dims)}
+                renderLeaf={(leaf, side) => renderLeaf(leaf, side, dims, match)}
               />
             </div>
           ))}
@@ -873,6 +920,67 @@ function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
       >
         بدون برگزاری مسابقه، به طور خودکار قهرمان این وزن اعلام می شود.
       </p>
+    </div>
+  );
+}
+
+/**
+ * خانه قابل رها کردن برگه تعاملی — هنرجوی کشیده شده روی این خانه رها می شود و
+ * جای دو خانه عوض می شود. حلقه سبز یعنی مقصد فعال است.
+ */
+function SheetDropZone({
+  dropId,
+  hint,
+  children,
+}: {
+  dropId: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId });
+  return (
+    <div
+      ref={setNodeRef}
+      title={hint}
+      className={`h-full w-full rounded-md transition-shadow ${
+        isOver ? "ring-2 ring-mat-600 ring-offset-1" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * ردیف قابل کشیدن هنرجو در برگه تعاملی — همان فیزیک بوم قرعه: کشیدن با فاصله
+ * ۶ پیکسل فعال می شود تا کلیک ساده مزاحمش نشود.
+ */
+function SheetDragChip({
+  groupId,
+  slotId,
+  participant,
+  children,
+}: {
+  groupId: string;
+  slotId: string;
+  participant: Participant;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `sheet-drag:${groupId}::${slotId}`,
+    data: { groupId, slotId },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      aria-label={`جابه جایی ${participant.fullName}`}
+      className={`h-full w-full cursor-grab touch-none active:cursor-grabbing ${
+        isDragging ? "opacity-30" : ""
+      }`}
+    >
+      {children}
     </div>
   );
 }

@@ -47,3 +47,17 @@ export function byeAthleteIdsOf(draw: GroupDraw): Set<string> {
   }
   return ids
 }
+
+/**
+ * خانه (اسلات) یک هنرجو در درخت قرعه — برای تعویض جایگاه دو نفر: انتقال
+ * استراحت از یک هنرجو به هنرجوی دیگر همان است که جای دو اسلات عوض شود.
+ */
+export function slotIdOfParticipant(draw: GroupDraw, participantId: string): string | null {
+  for (const leaf of draw.structure.leaves) {
+    const occupant = draw.assignments[leaf.slotId]
+    if (occupant.kind === 'participant' && occupant.participantId === participantId) {
+      return leaf.slotId
+    }
+  }
+  return null
+}

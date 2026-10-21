@@ -42,7 +42,7 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
           وزن {toFaDigits(draw.group.weightCategory)}
         </span>
         {solo ? (
-          <span className="truncate text-xs text-muted">
+          <span className="text-xs leading-5 text-muted">
             تنها شرکت کننده: <span className="font-bold text-ink-800">{solo.fullName}</span> — مربی:{" "}
             {solo.coachName} • بدون مسابقه، صدرنشین خودکار
           </span>

@@ -134,6 +134,61 @@ if (restSlotId) {
   )
 }
 
+// ————— قرعه کشی دوباره + تعویض جایگاه از پنل مربی ها —————
+import { slotIdOfParticipant } from '../src/lib/coachRows.ts'
+
+// هر هنرجو دقیقا یک خانه دارد و برعکس، هر خانه پر با همان هنرجو پیدا می شود
+let slotLookupOk = true
+for (const [slotId, occupant] of Object.entries(fiveDraw.assignments)) {
+  if (occupant.kind !== 'participant') continue
+  if (slotIdOfParticipant(fiveDraw, occupant.participantId) !== slotId) slotLookupOk = false
+}
+check('slotIdOfParticipant round-trips for every occupant', slotLookupOk)
+check('slotIdOfParticipant unknown participant', slotIdOfParticipant(fiveDraw, 'nope') === null)
+
+// قرعه کشی دوباره = همان ورودی با ترتیب بُر خورده — ساختار ثابت می ماند و
+// همه هنرجوها همچنان دقیقا یک بار جای می گیرند
+function shuffledDrawOf(draw: GroupDraw): GroupDraw {
+  const members = draw.group.participantIds.map((id) => participantsRecord[id])
+  const shuffled = [...members]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1))
+    ;[shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]]
+  }
+  const renumbered = shuffled.map((participant, index) => ({ ...participant, sourceRow: index }))
+  const pool = { ...participantsRecord }
+  for (const participant of renumbered) pool[participant.id] = participant
+  return generateGroupDraw(
+    { ...draw.group, participantIds: renumbered.map((participant) => participant.id) },
+    pool,
+    tournamentRules,
+  )
+}
+for (const group of groups) {
+  const original = draws.get(group.id)!
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const redrawn = shuffledDrawOf(original)
+    const sameStructure =
+      redrawn.structure.bracketSize === original.structure.bracketSize &&
+      redrawn.structure.restSlotIds.length === original.structure.restSlotIds.length
+    const placedOnce =
+      Object.values(redrawn.assignments).filter((occupant) => occupant.kind === 'participant')
+        .length === group.participantIds.length
+    const placedIds = Object.values(redrawn.assignments)
+      .filter((occupant) => occupant.kind === 'participant')
+      .map((occupant) => (occupant as { participantId: string }).participantId)
+      .sort()
+    const sameSet =
+      JSON.stringify(placedIds) === JSON.stringify([...group.participantIds].sort())
+    if (!sameStructure || !placedOnce || !sameSet) {
+      failures += 1
+      console.error(`FAIL: redraw of ${group.id} broke the draw invariants`)
+      break
+    }
+  }
+  console.log(`ok: redraw keeps ${group.id} intact (structure + participants placed once)`)
+}
+
 if (failures > 0) {
   console.error(`${failures} failure(s)`)
   process.exit(1)

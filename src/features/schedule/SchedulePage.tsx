@@ -13,10 +13,26 @@ import {
   List,
   Plus,
   Printer,
+  RefreshCw,
   Trash2,
   Users,
   X,
 } from 'lucide-react'
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { GroupDraw, Participant } from '../../core/types.ts'
 import { FitText } from '../../components/FitText.tsx'
 import {
@@ -30,7 +46,7 @@ import {
   type ScheduledSession,
   type ScheduleSession,
 } from '../../core/schedule/schedule.ts'
-import { useTournament, type TournamentMeta } from '../../store/tournamentStore.ts'
+import { useTournament, isManualGroupId, type TournamentMeta } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
 import { Button } from '../../components/Button.tsx'
 import { Segmented } from '../../components/Segmented.tsx'
@@ -43,7 +59,7 @@ import { beltColorFor } from '../../lib/beltColor.ts'
 import { compareByWeightLabel } from '../../lib/weightSorting.ts'
 import { realMatchCount, groupOptionLabel } from '../../lib/drawStats.ts'
 import { sideTheme } from '../bracket/sideColors.ts'
-import { coachRowsOf } from '../../lib/coachRows.ts'
+import { coachRowsOf, slotIdOfParticipant } from '../../lib/coachRows.ts'
 import { CoachRoster } from '../bracket/CoachRoster.tsx'
 import { ScheduleSheet } from './ScheduleSheet.tsx'
 import { exportScheduleBundlePdf, exportScheduleImage, exportScheduleToPdf } from './exportSchedule.ts'
@@ -63,6 +79,7 @@ export function SchedulePage() {
   const updateScheduleMat = useTournament((state) => state.updateScheduleMat)
   const toggleScheduleGroup = useTournament((state) => state.toggleScheduleGroup)
   const moveScheduleMat = useTournament((state) => state.moveScheduleMat)
+  const moveScheduleGroup = useTournament((state) => state.moveScheduleGroup)
   const matchNumberOverrides = useTournament((state) => state.matchNumberOverrides)
 
   // دو نمای صفحه برنامه ریزی: «برنامه» (ویرایشگر بازه/زمین) و «جدولی»
@@ -73,6 +90,30 @@ export function SchedulePage() {
   const [activeTabKey, setActiveTabKey] = useState<string | null>(null)
   // برگه ای که دکمه «خروجی عکس» خودش را زده — آفسکرین مونت و PNG می شود
   const [imageSheet, setImageSheet] = useState<ScheduledSheetInfo | null>(null)
+  // وزنی که در «حالت برنامه» با دست کشیده می شود — چیپ شناور روی آن می نشیند
+  const [activeWeightId, setActiveWeightId] = useState<string | null>(null)
+  const planSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  /** رها کردن چیپ وزن روی یک زمین — وزن از هر زمین/بازه ای که بود به مقصد می رود */
+  function handlePlanDragEnd(event: DragEndEvent) {
+    setActiveWeightId(null)
+    const data = event.active.data.current as { groupId?: string } | undefined
+    const overId = event.over?.id
+    if (!data?.groupId || typeof overId !== 'string') return
+    if (!overId.startsWith('mat-zone:')) return
+    const rest = overId.slice('mat-zone:'.length)
+    const slash = rest.indexOf('/')
+    if (slash < 0) return
+    const sessionId = rest.slice(0, slash)
+    const matId = rest.slice(slash + 1)
+    const session = scheduleSessions.find((item) => item.id === sessionId)
+    const mat = session?.mats.find((item) => item.id === matId)
+    if (!mat || mat.groupIds.includes(data.groupId)) return
+    moveScheduleGroup(sessionId, matId, data.groupId)
+  }
 
   const drawList = useMemo(() => Object.values(draws), [draws])
 
@@ -292,9 +333,10 @@ export function SchedulePage() {
               شماره گذاری هر زمین مستقل است و از ۱ شروع می شود: در هر زمین اول دورِ اولِ همه وزن ها —
               از جدول پرمسابقه تر به کم مسابقه تر — شماره می خورد، بعد دوباره از جدول اول دورِ دوم و
               به همین ترتیب تا فینال؛ پس فینال ها همیشه آخرین شماره های همان زمین را می گیرند.
-              شماره ها زنده روی دایره های برگه های قرعه هم می نشیند و برای تغییر دستی کافی است روی
-              شماره هر مسابقه در همین صفحه، در «حالت جدولی» یا روی دایره داخل خود جدول کلیک کنید —
-              شماره دستی همیشه بر برنامه مقدم است.
+              چیپ هر وزن قابل کشیدن است: بکش و روی زمین دیگر (یا بازه دیگر) رها کن تا وزن جابه جا
+              شود. شماره ها زنده روی دایره های برگه های قرعه هم می نشیند و برای تغییر دستی کافی است
+              روی شماره هر مسابقه در همین صفحه، در «حالت جدولی» یا روی دایره داخل خود جدول کلیک
+              کنید — شماره دستی همیشه بر برنامه مقدم است.
             </span>
           </p>
 
@@ -314,40 +356,59 @@ export function SchedulePage() {
               یک بازه جدید اضافه کنید.
             </EmptyState>
           ) : (
-            <div className="space-y-5">
-              {scheduleSessions.map((session, index) => {
-                const scheduled = built.sessions.find((item) => item.session.id === session.id)
-                return (
-                  <SessionEditor
-                    key={session.id}
-                    session={session}
-                    index={index}
-                    scheduled={scheduled}
-                    draws={draws}
-                    built={built}
-                    available={available}
-                    zeroMatch={zeroMatch}
-                    manualNumbers={manualNumbers}
-                    onRemoveSession={() => {
-                      const hasMatches = (scheduled?.matchCount ?? 0) > 0
-                      if (!hasMatches || window.confirm('این بازه و زمین هایش حذف شود؟')) {
-                        removeScheduleSession(session.id)
-                      }
-                    }}
-                    onTimeChange={(patch) => updateScheduleSession(session.id, patch)}
-                    onAddMat={() => addScheduleMat(session.id)}
-                    onRemoveMat={(matId) => removeScheduleMat(session.id, matId)}
-                    onMatLabel={(matId, label) => updateScheduleMat(session.id, matId, { label })}
-                    onToggleGroup={(matId, groupId) => toggleScheduleGroup(session.id, matId, groupId)}
-                    onMoveMat={(matId, direction) => moveScheduleMat(session.id, matId, direction)}
-                  />
-                )
-              })}
-              <Button variant="subtle" onClick={addScheduleSession} className="w-full border-dashed">
-                <Plus size={16} />
-                افزودن بازه زمانی جدید
-              </Button>
-            </div>
+            <DndContext
+              sensors={planSensors}
+              collisionDetection={pointerWithin}
+              onDragStart={(event) => {
+                const data = event.active.data.current as { groupId?: string } | undefined
+                if (data?.groupId) setActiveWeightId(data.groupId)
+              }}
+              onDragEnd={handlePlanDragEnd}
+              onDragCancel={() => setActiveWeightId(null)}
+            >
+              <div className="space-y-5">
+                {scheduleSessions.map((session, index) => {
+                  const scheduled = built.sessions.find((item) => item.session.id === session.id)
+                  return (
+                    <SessionEditor
+                      key={session.id}
+                      session={session}
+                      index={index}
+                      scheduled={scheduled}
+                      draws={draws}
+                      built={built}
+                      available={available}
+                      zeroMatch={zeroMatch}
+                      manualNumbers={manualNumbers}
+                      onRemoveSession={() => {
+                        const hasMatches = (scheduled?.matchCount ?? 0) > 0
+                        if (!hasMatches || window.confirm('این بازه و زمین هایش حذف شود؟')) {
+                          removeScheduleSession(session.id)
+                        }
+                      }}
+                      onTimeChange={(patch) => updateScheduleSession(session.id, patch)}
+                      onAddMat={() => addScheduleMat(session.id)}
+                      onRemoveMat={(matId) => removeScheduleMat(session.id, matId)}
+                      onMatLabel={(matId, label) => updateScheduleMat(session.id, matId, { label })}
+                      onToggleGroup={(matId, groupId) => toggleScheduleGroup(session.id, matId, groupId)}
+                      onMoveMat={(matId, direction) => moveScheduleMat(session.id, matId, direction)}
+                    />
+                  )
+                })}
+                <Button variant="subtle" onClick={addScheduleSession} className="w-full border-dashed">
+                  <Plus size={16} />
+                  افزودن بازه زمانی جدید
+                </Button>
+              </div>
+              <DragOverlay dropAnimation={null}>
+                {activeWeightId && draws[activeWeightId] ? (
+                  <span className="flex items-center rounded-full border border-mat-600 bg-surface px-2.5 py-1 text-[11px] font-medium text-ink-800 shadow-lg">
+                    {toFaDigits(draws[activeWeightId].group.ageCategory)}{' '}
+                    {toFaDigits(draws[activeWeightId].group.weightCategory)}
+                  </span>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           )}
         </>
       )}
@@ -498,6 +559,55 @@ function TablesView({
 }: TablesViewProps) {
   // نوار مربی های هر برگه — همیشه حداکثر یکی باز است
   const [coachOpenFor, setCoachOpenFor] = useState<string | null>(null)
+  // هنرجویی که در «حالت جدولی» کشیده می شود — پیش نمایش شناور نامش را نشان می دهد
+  const [sheetDrag, setSheetDrag] = useState<{ groupId: string; slotId: string } | null>(null)
+  const moveParticipant = useTournament((state) => state.moveParticipant)
+  const redrawGroup = useTournament((state) => state.redrawGroup)
+  const sheetSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleSheetDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as { groupId?: string; slotId?: string } | undefined
+    if (data?.groupId && data.slotId) setSheetDrag({ groupId: data.groupId, slotId: data.slotId })
+  }
+
+  /** رها کردن هنرجو روی خانه مقصد — فقط داخل همان جدول؛ جای دو نفر عوض می شود */
+  function handleSheetDragEnd(event: DragEndEvent) {
+    setSheetDrag(null)
+    const data = event.active.data.current as { groupId?: string; slotId?: string } | undefined
+    const overId = event.over?.id
+    if (!data?.groupId || !data.slotId || typeof overId !== 'string') return
+    const sep = overId.indexOf('::')
+    if (sep < 0) return
+    const toGroupId = overId.slice(0, sep)
+    const toSlotId = overId.slice(sep + 2)
+    if (toGroupId !== data.groupId || toSlotId === data.slotId) return
+    moveParticipant(data.groupId, data.slotId, toSlotId)
+  }
+
+  /** انتقال استراحت از پنل مربی ها: تعویض جایگاه دو هنرجوی همین وزن */
+  function handleRosterSwap(
+    sheet: ScheduledSheetInfo,
+    participantAId: string,
+    participantBId: string,
+  ) {
+    const slotA = slotIdOfParticipant(sheet.draw, participantAId)
+    const slotB = slotIdOfParticipant(sheet.draw, participantBId)
+    if (slotA && slotB && slotA !== slotB) moveParticipant(sheet.groupId, slotA, slotB)
+  }
+
+  /** قرعه کشی دوباره همین وزن — همان هنرجوها با چیدمان تازه */
+  function redrawSheet(sheet: ScheduledSheetInfo) {
+    if (
+      window.confirm(
+        'قرعه این جدول دوباره کشیده شود؟ چیدمان فعلی جای خود را به قرعه جدید می دهد.',
+      )
+    ) {
+      redrawGroup(sheet.groupId)
+    }
+  }
 
   if (scheduledSheets.length === 0) {
     return (
@@ -542,11 +652,12 @@ function TablesView({
         <Info size={15} className="mt-1 shrink-0 text-mat-600" />
         <span>
           این ها همان جدول های قرعه وزن های داخل برنامه اند — به ترتیب بازه زمانی و زمین، با
-          شماره های زنده مسابقه ها و بج درشت «زمین» و «ساعت» روی سربرگ هر برگه. شماره هر مسابقه
-          همین جا هم قابل ویرایش است: روی دایره شماره کلیک کنید، عدد دستی بزنید و Enter بزنید
-          (Escape یا پاک کردن یعنی بازگشت به شماره برنامه). دکمه «خروجی عکس» کنار هر جدول، تصویر
-          PNG همان برگه را جدا می دهد؛ اگر زمین ها چند تا باشند، خروجی های بالای صفحه فقط برگه های
-          تب فعال را می گیرند.
+          شماره های زنده مسابقه ها و بج درشت «زمین» و «ساعت» روی سربرگ هر برگه. هر ردیف هنرجو قابل
+          کشیدن است: روی ردیف هنرجوی دیگر رها کن تا جای دو نفر عوض شود؛ رها کردن روی خانه
+          «استراحت» هم استراحت را به همان هنرجو منتقل می کند. از پنل «مربی ها و هنرجوها» هم با دکمه
+          تعویض کنار هر نام می توانی استراحت را دستی جابه جا کنی. دکمه «قرعه کشی دوباره» چیدمان
+          تازه ای با همان هنرجوها می سازد. شماره هر مسابقه هم روی دایره اش قابل ویرایش است و دکمه
+          «خروجی عکس» تصویر PNG همان برگه را جدا می دهد.
         </span>
       </p>
 
@@ -563,7 +674,14 @@ function TablesView({
         />
       )}
 
-      {visibleSheets.map((sheet) => {
+      <DndContext
+        sensors={sheetSensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleSheetDragStart}
+        onDragEnd={handleSheetDragEnd}
+        onDragCancel={() => setSheetDrag(null)}
+      >
+        {visibleSheets.map((sheet) => {
         const belt = beltColorFor(sheet.groupId)
         const ordinal = (sheetOrdinal.get(sheet.groupId) ?? 0) + 1
         const coachOpen = coachOpenFor === sheet.groupId
@@ -611,6 +729,15 @@ function TablesView({
                 <ExternalLink size={13} />
                 چاپ این جدول
               </SheetChipButton>
+              {!isManualGroupId(sheet.groupId) && (
+                <SheetChipButton
+                  onClick={() => redrawSheet(sheet)}
+                  title="چیدمان تازه با همان هنرجوها — قواعد جدا ماندن مربی ها و اولویت استراحت سر جایش است"
+                >
+                  <RefreshCw size={13} />
+                  قرعه کشی دوباره
+                </SheetChipButton>
+              )}
             </div>
 
             {coachOpen && (
@@ -619,6 +746,9 @@ function TablesView({
                   rows={rows}
                   layout="strip"
                   emptyText="هنرجویی برای این وزن ثبت نشده است."
+                  onSwap={(participantAId, participantBId) =>
+                    handleRosterSwap(sheet, participantAId, participantBId)
+                  }
                 />
               </div>
             )}
@@ -632,6 +762,7 @@ function TablesView({
                 matchNumbers={matchNumbers}
                 planNumbers={planNumbers}
                 editableNumbers
+                interactiveSwaps
                 matLabel={sheet.matLabel}
                 attendTime={sheet.attendTime}
               />
@@ -639,6 +770,47 @@ function TablesView({
           </div>
         )
       })}
+
+        <DragOverlay dropAnimation={null}>
+          {(() => {
+            if (!sheetDrag) return null
+            const sheet = scheduledSheets.find((item) => item.groupId === sheetDrag.groupId)
+            const occupant = sheet?.draw.assignments[sheetDrag.slotId]
+            const participant =
+              occupant?.kind === 'participant'
+                ? participantsById.get(occupant.participantId)
+                : undefined
+            if (!participant) return null
+            return (
+              <div
+                dir="rtl"
+                className="flex w-[216px] items-stretch overflow-hidden rounded-md shadow-lg"
+                style={{ backgroundColor: '#f1f5f9' }}
+              >
+                <span aria-hidden className="w-1 shrink-0" style={{ backgroundColor: '#64748b' }} />
+                <div className="flex min-w-0 flex-1 flex-col justify-center px-2.5 py-1.5">
+                  <FitText
+                    text={participant.fullName}
+                    baseSize={15}
+                    minSize={9}
+                    twoLine={false}
+                    className="font-bold leading-tight text-ink-900"
+                  />
+                  {participant.coachName && (
+                    <FitText
+                      text={participant.coachName}
+                      baseSize={11.5}
+                      minSize={8}
+                      twoLine={false}
+                      className="font-medium leading-tight text-ink-700"
+                    />
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 }
@@ -756,6 +928,7 @@ function SessionEditor({
         {session.mats.map((mat, matIndex) => (
           <MatEditor
             key={mat.id}
+            sessionId={session.id}
             mat={mat}
             scheduledMat={scheduled?.mats.find((item) => item.mat.id === mat.id)}
             draws={draws}
@@ -786,6 +959,8 @@ function SessionEditor({
 }
 
 interface MatEditorProps {
+  /** شناسه بازه — برای شناسه منطقه رها کردن چیپ وزن ها (جابه جایی بین زمین ها) */
+  sessionId: string
   mat: ScheduleMat
   scheduledMat: ScheduledMat | undefined
   draws: Record<string, GroupDraw>
@@ -803,6 +978,7 @@ interface MatEditorProps {
 }
 
 function MatEditor({
+  sessionId,
   mat,
   scheduledMat,
   draws,
@@ -865,24 +1041,18 @@ function MatEditor({
       </div>
 
       {(mat.groupIds.length > 0 || available.length > 0 || zeroMatch.length > 0) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <MatChipZone sessionId={sessionId} matId={mat.id}>
           {mat.groupIds.map((groupId) => {
             const draw = draws[groupId]
             if (!draw) return null
             return (
-              <span
+              <DraggableWeightChip
                 key={groupId}
-                className="flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-800"
+                groupId={groupId}
+                onRemove={() => onToggleGroup(groupId)}
               >
                 {toFaDigits(draw.group.ageCategory)} {toFaDigits(draw.group.weightCategory)}
-                <button
-                  onClick={() => onToggleGroup(groupId)}
-                  className="text-muted transition-colors hover:text-hogu-600"
-                  title="برداشتن این وزن از زمین"
-                >
-                  <X size={12} />
-                </button>
-              </span>
+              </DraggableWeightChip>
             )
           })}
           <select
@@ -905,7 +1075,7 @@ function MatEditor({
               </option>
             ))}
           </select>
-        </div>
+        </MatChipZone>
       )}
 
       {(scheduledMat?.weights.length ?? 0) === 0 ? (
@@ -1050,5 +1220,69 @@ function SeqBadge({
     >
       {display}
     </button>
+  )
+}
+
+/**
+ * چیپ وزن قابل کشیدن در «حالت برنامه» — بکش و روی زمین مقصد (یا بازه دیگر)
+ * رها کن؛ برنامه و شماره ها همان لحظه بازسازی می شوند. دکمه ✕ سر جایش است.
+ */
+function DraggableWeightChip({
+  groupId,
+  onRemove,
+  children,
+}: {
+  groupId: string
+  onRemove: () => void
+  children: ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `weight-chip:${groupId}`,
+    data: { groupId },
+  })
+  return (
+    <span
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      title="بکش و روی زمین مقصد رها کن تا این وزن جابه جا شود"
+      className={`flex touch-none items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-800 ${
+        isDragging ? 'opacity-30' : 'cursor-grab active:cursor-grabbing'
+      }`}
+    >
+      {children}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-muted transition-colors hover:text-hogu-600"
+        title="برداشتن این وزن از زمین"
+      >
+        <X size={12} />
+      </button>
+    </span>
+  )
+}
+
+/** منطقه رها کردن چیپ وزن ها — یک زمین؛ هنگام عبور چیپ روشن می شود */
+function MatChipZone({
+  sessionId,
+  matId,
+  children,
+}: {
+  sessionId: string
+  matId: string
+  children: ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: `mat-zone:${sessionId}/${matId}` })
+  return (
+    <div
+      ref={setNodeRef}
+      data-mat-zone={matId}
+      className={`mt-2 flex flex-wrap items-center gap-1.5 rounded-lg transition-shadow ${
+        isOver ? 'ring-2 ring-mat-600' : ''
+      }`}
+    >
+      {children}
+    </div>
   )
 }

@@ -6,11 +6,12 @@ import {
   Printer,
   RotateCcw,
   Settings2,
+  Shuffle,
   Trophy,
   Undo2,
   Users,
 } from 'lucide-react'
-import { useTournament } from '../../store/tournamentStore.ts'
+import { useTournament, isManualGroupId } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
 import { Button } from '../../components/Button.tsx'
 import { beltColorFor } from '../../lib/beltColor.ts'
@@ -31,6 +32,7 @@ export function BracketPage() {
   const resetGroupLayout = useTournament((state) => state.resetGroupLayout)
   const startExportJob = useTournament((state) => state.startExportJob)
   const setSettingsOpen = useTournament((state) => state.setSettingsOpen)
+  const redrawGroup = useTournament((state) => state.redrawGroup)
   const manualTables = useTournament((state) => state.manualTables)
   const updateManualTableInfo = useTournament((state) => state.updateManualTableInfo)
   const medalRainTables = useTournament((state) => state.medalRainTables)
@@ -113,6 +115,24 @@ export function BracketPage() {
             <RotateCcw size={16} />
             چیدمان اولیه
           </Button>
+          {!isManualGroupId(draw.groupId) && (
+            <Button
+              variant="subtle"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'قرعه این جدول دوباره کشیده شود؟ چیدمان فعلی جای خود را به قرعه جدید می دهد.',
+                  )
+                ) {
+                  redrawGroup(draw.groupId)
+                }
+              }}
+              title="همان هنرجوها با چیدمان تازه — قواعد جدا ماندن مربی ها و اولویت استراحت سر جایش است"
+            >
+              <Shuffle size={16} />
+              قرعه کشی دوباره
+            </Button>
+          )}
           <Button
             variant="subtle"
             onClick={() => {

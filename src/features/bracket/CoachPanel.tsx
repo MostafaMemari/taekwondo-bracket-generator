@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { Users, X } from 'lucide-react'
 import type { GroupDraw, Participant } from '../../core/types.ts'
 import { toFaDigits } from '../../lib/formatFa.ts'
-import { coachRowsOf } from '../../lib/coachRows.ts'
+import { coachRowsOf, slotIdOfParticipant } from '../../lib/coachRows.ts'
+import { useTournament } from '../../store/tournamentStore.ts'
 import { CoachRoster } from './CoachRoster.tsx'
 
 interface CoachPanelProps {
@@ -27,7 +28,15 @@ export function CoachPanel({ draw, participantsById, onClose }: CoachPanelProps)
     () => coachRowsOf(draw, participantsById),
     [draw, participantsById],
   )
+  const moveParticipant = useTournament((state) => state.moveParticipant)
   const restCount = draw.structure.restSlotIds.length
+
+  /** تعویض جایگاه دو هنرجو — راه انتقال استراحت از یکی به دیگری */
+  function handleSwap(participantAId: string, participantBId: string) {
+    const slotA = slotIdOfParticipant(draw, participantAId)
+    const slotB = slotIdOfParticipant(draw, participantBId)
+    if (slotA && slotB && slotA !== slotB) moveParticipant(draw.groupId, slotA, slotB)
+  }
 
   return (
     <aside className="animate-drawer-in absolute left-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-[320px] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl">
@@ -50,7 +59,8 @@ export function CoachPanel({ draw, participantsById, onClose }: CoachPanelProps)
           </button>
         </div>
         <p className="mt-1.5 text-[11px] leading-5 text-muted">
-          به ترتیب تعداد هنرجو — اولویت استراحت با مربیِ هنرجوهای بیشتر
+          به ترتیب تعداد هنرجو — اولویت استراحت با مربیِ هنرجوهای بیشتر؛ با دکمه تعویض کنار هر
+          هنرجو می توانی استراحت را دستی به هنرجوی دیگری بدهی
         </p>
       </header>
 
@@ -59,6 +69,7 @@ export function CoachPanel({ draw, participantsById, onClose }: CoachPanelProps)
           rows={rows}
           layout="drawer"
           emptyText="هنرجویی برای این وزن ثبت نشده است."
+          onSwap={handleSwap}
         />
       </div>
 

@@ -10,6 +10,7 @@ import { renderWeightTitle, toFaDigits } from '../../lib/formatFa.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
 import { beltColorFor } from '../../lib/beltColor.ts'
 import { StatCell } from '../../components/StatCell.tsx'
+import { FitText } from '../../components/FitText.tsx'
 import { sideTheme, FINAL_GOLD } from '../bracket/sideColors.ts'
 
 /** A4 portrait at 96 dpi — the sheet flows vertically, one column */
@@ -321,18 +322,14 @@ function NameCell({ label, accent }: { label: string; accent: string }) {
         aria-hidden
         style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: accent, flexShrink: 0 }}
       />
-      <span
-        style={{
-          fontSize: pending ? 10.5 : 11.5,
-          fontWeight: pending ? 500 : 600,
-          color: pending ? '#46608a' : INK,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {label}
-      </span>
+      {/* نام ورزشکار هرگز با «…» بریده نمی شود — کوچک می شود و اگر لازم شد دو خط می شود */}
+      <FitText
+        text={label}
+        baseSize={pending ? 10.5 : 11.5}
+        minSize={7}
+        className={pending ? 'font-medium' : 'font-semibold'}
+        style={{ color: pending ? '#46608a' : INK }}
+      />
     </span>
   )
 }

@@ -48,10 +48,13 @@ export function AthleteRow({
         style={{ width: 4.5, backgroundColor: theme.accent }}
       />
       <div className="flex min-w-0 flex-1 flex-col items-stretch justify-center gap-0.5 px-1.5">
+        {/* نام اولویت مطلق است — وقتی خط مربی هست نام تک خطی با کف کوچک تر؛
+            وقتی مربی خط ندارد نام می تواند تا دو خط بشکند تا کامل بماند */}
         <FitText
           text={participant.fullName}
           baseSize={nameFontSize}
-          minSize={7}
+          minSize={coachVisible ? 5.5 : 7}
+          twoLine={!coachVisible}
           className="font-bold leading-tight text-ink-900"
         />
         {coachVisible && (
@@ -59,6 +62,7 @@ export function AthleteRow({
             text={participant.coachName}
             baseSize={subSize}
             minSize={6.5}
+            twoLine={false}
             className="font-medium text-ink-700"
             style={{ lineHeight: 1.25 }}
             title={`مربی: ${participant.coachName}`}
