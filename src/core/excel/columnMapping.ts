@@ -1,4 +1,4 @@
-import { excelSchema, type ParticipantField } from '../../config/excelSchema.ts'
+import { excelSchema, optionalParticipantFields, type ParticipantField } from '../../config/excelSchema.ts'
 
 export type SheetCell = string | number | boolean | null
 
@@ -44,7 +44,10 @@ export function guessColumnSelection(headers: readonly string[]): ColumnSelectio
 }
 
 export function isSelectionComplete(selection: ColumnSelection): boolean {
-  return participantFields.every((field) => selection[field] !== noneValue)
+  return participantFields.every(
+    (field) =>
+      optionalParticipantFields.includes(field) || selection[field] !== noneValue,
+  )
 }
 
 export function resolveSelection(

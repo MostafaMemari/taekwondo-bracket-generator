@@ -1,4 +1,4 @@
-import { excelSchema } from '../../config/excelSchema.ts'
+import { excelSchema, optionalParticipantFields } from '../../config/excelSchema.ts'
 import {
   cellToText,
   guessColumnSelection,
@@ -31,7 +31,10 @@ export function parseMappedSheet(matrix: SheetMatrix, selection: ColumnSelection
     }
     if (!hasAnyValue) continue
 
-    const missingFields = participantFields.filter((field) => !values[field])
+    // ستون های اختیاری (مثل وزن kg) نبودن شان ردیف را ناقص نمی کند
+    const missingFields = participantFields.filter(
+      (field) => !optionalParticipantFields.includes(field) && !values[field],
+    )
     if (missingFields.length > 0) {
       issues.push({
         rowNumber: excelRowNumber,
@@ -46,6 +49,7 @@ export function parseMappedSheet(matrix: SheetMatrix, selection: ColumnSelection
       coachName: values.coachName,
       ageCategory: values.ageCategory,
       weightCategory: values.weightCategory,
+      weightKg: values.weightKg ?? '',
       sourceRow: excelRowNumber,
     })
   }
@@ -61,7 +65,7 @@ export async function parseRosterWorkbook(data: ArrayBuffer): Promise<ParsedRost
       issues: [
         {
           rowNumber: 0,
-          missingFields: ['سرستون‌ها', ...participantFields.map((field) => excelSchema.columns[field].header)],
+          missingFields: ['سرستون ها', ...participantFields.map((field) => excelSchema.columns[field].header)],
         },
       ],
     }

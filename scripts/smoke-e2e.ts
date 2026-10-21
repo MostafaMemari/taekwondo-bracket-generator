@@ -17,16 +17,23 @@ function check(label: string, condition: boolean): void {
   }
 }
 
-function firstRoundMatches(structure: BracketStructure) {
-  const matches: { left?: string; right?: string }[] = []
+interface TreeMatch {
+  matchId: string
+  slots: (string | undefined)[]
+}
+
+/** every match of the structure with the leaf slots that render inside it */
+function allMatches(structure: BracketStructure): TreeMatch[] {
+  const matches: TreeMatch[] = []
   function walk(node: typeof structure.root): void {
     if (node.kind === 'leaf') return
-    if (node.round === 1) {
-      matches.push({
-        left: node.left.kind === 'leaf' ? node.left.slotId : undefined,
-        right: node.right.kind === 'leaf' ? node.right.slotId : undefined,
-      })
-    }
+    matches.push({
+      matchId: node.matchId,
+      slots: [
+        node.left.kind === 'leaf' && node.left.entryRound === 1 ? node.left.slotId : undefined,
+        node.right.kind === 'leaf' && node.right.entryRound === 1 ? node.right.slotId : undefined,
+      ],
+    })
     walk(node.left)
     walk(node.right)
   }
@@ -61,60 +68,71 @@ for (const group of groups) {
       new Set(placedIds).size === placedIds.length,
   )
 
-  const byeCount = draw.structure.byeSlotIds.length
-  const byeCoachNames = draw.structure.byeSlotIds
-    .map((slotId) => draw.assignments[slotId])
-    .filter((o) => o.kind === 'participant')
-    .map((o) => participantsById.get(o.participantId)!.coachName)
-  check(`group ${groupId}: bye count is ${byeCount}`, byeCoachNames.length === byeCount)
-
   const studentsPerCoach = new Map<string, number>()
   for (const id of group.participantIds) {
     const coach = participantsById.get(id)!.coachName
     studentsPerCoach.set(coach, (studentsPerCoach.get(coach) ?? 0) + 1)
   }
-  for (const coachName of byeCoachNames) {
-    const maxStudents = Math.max(...studentsPerCoach.values())
-    check(
-      `group ${groupId}: bye coach "${coachName}" has maximal students`,
-      studentsPerCoach.get(coachName) === maxStudents,
-    )
+  const maxStudents = Math.max(...studentsPerCoach.values())
+
+  // the first bye (walkover-winner) slot must go to a maximal-team athlete
+  const restSet = new Set(draw.structure.restSlotIds)
+  const firstByeSlot = draw.structure.leaves.find(
+    (leaf) => leaf.entryRound > 1 && !restSet.has(leaf.slotId),
+  )?.slotId
+  if (firstByeSlot) {
+    const occupant = draw.assignments[firstByeSlot]
+    if (occupant.kind === 'participant') {
+      const coach = participantsById.get(occupant.participantId)!.coachName
+      check(
+        `group ${groupId}: first bye goes to a maximal-team athlete`,
+        studentsPerCoach.get(coach) === maxStudents,
+      )
+    }
   }
 
-  let unavoidableClash = false
-  for (const match of firstRoundMatches(draw.structure)) {
-    if (!match.left || !match.right) continue
-    const leftOccupant = draw.assignments[match.left]
-    const rightOccupant = draw.assignments[match.right]
-    if (leftOccupant.kind !== 'participant' || rightOccupant.kind !== 'participant') continue
-    const leftCoach = participantsById.get(leftOccupant.participantId)!.coachName
-    const rightCoach = participantsById.get(rightOccupant.participantId)!.coachName
-    if (leftCoach !== rightCoach) continue
-    const coachStudents = studentsPerCoach.get(leftCoach)!
-    const halfSlots = Math.ceil(group.participantIds.length / 2)
-    if (coachStudents > halfSlots) {
-      unavoidableClash = true
-      continue
+  // teammates never meet in the same match when avoidable
+  const halfSlots = Math.ceil(group.participantIds.length / 2)
+  for (const match of allMatches(draw.structure)) {
+    const filled = match.slots.filter((slotId) => slotId !== undefined)
+    if (filled.length < 2) continue
+    const [a, b] = filled.map((slotId) => draw.assignments[slotId])
+    if (a.kind !== 'participant' || b.kind !== 'participant') continue
+    const coachA = participantsById.get(a.participantId)!.coachName
+    const coachB = participantsById.get(b.participantId)!.coachName
+    if (coachA === coachB && studentsPerCoach.get(coachA)! <= halfSlots) {
+      failures += 1
+      console.error(
+        `FAIL: group ${groupId}: avoidable clash in ${match.matchId} between athletes of "${coachA}"`,
+      )
     }
-    failures += 1
-    console.error(
-      `FAIL: group ${groupId}: avoidable round-1 clash between athletes of "${leftCoach}"`,
-    )
   }
-  void unavoidableClash
+  console.log(`ok: group ${groupId}: teammate clash rules respected`)
 }
 
 const fiveGroup = groups.find((g) => g.participantIds.length === 5)!
 const fiveDraw = draws.get(fiveGroup.id)!
-const slotIds = Object.keys(fiveDraw.assignments)
-const swapResult = applySlotSwap(fiveDraw.assignments, slotIds[0], slotIds[2])
+const participantSlotIds = Object.entries(fiveDraw.assignments)
+  .filter(([, occupant]) => occupant.kind === 'participant')
+  .map(([slotId]) => slotId)
+const swapFrom = participantSlotIds[0]
+const swapTo = participantSlotIds[2]
+const swapResult = applySlotSwap(fiveDraw.assignments, swapFrom, swapTo)
 check('swap changes assignments', JSON.stringify(swapResult) !== JSON.stringify(fiveDraw.assignments))
 check(
   'swap twice restores original',
-  JSON.stringify(applySlotSwap(swapResult!, slotIds[0], slotIds[2])) ===
+  JSON.stringify(applySlotSwap(swapResult!, swapFrom, swapTo)) ===
     JSON.stringify(fiveDraw.assignments),
 )
-check('swap onto itself rejected', applySlotSwap(fiveDraw.assignments, slotIds[0], slotIds[0]) === null)
+check('swap onto itself rejected', applySlotSwap(fiveDraw.assignments, swapFrom, swapFrom) === null)
+
+const restSlotId = fiveDraw.structure.restSlotIds[0]
+if (restSlotId) {
+  check(
+    'swap onto a rest slot rejected',
+    applySlotSwap(fiveDraw.assignments, swapFrom, restSlotId) === null,
+  )
+}
 
 if (failures > 0) {
   console.error(`${failures} failure(s)`)

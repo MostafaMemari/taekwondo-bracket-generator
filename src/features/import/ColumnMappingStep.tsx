@@ -10,7 +10,7 @@ import {
   type SheetCell,
   type SheetMatrix,
 } from '../../core/excel/columnMapping.ts'
-import { excelSchema } from '../../config/excelSchema.ts'
+import { excelSchema, optionalParticipantFields } from '../../config/excelSchema.ts'
 import { Button } from '../../components/Button.tsx'
 import { toFaDigits } from '../../lib/formatFa.ts'
 
@@ -61,16 +61,16 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
     <div className="space-y-6">
       <header>
         <p className="truncate text-xs text-muted" title={fileName}>{fileName}</p>
-        <h1 className="mt-1 font-display text-3xl text-ink-900">تطبیق ستون‌های اکسل</h1>
+        <h1 className="mt-1 font-display text-3xl text-ink-900">تطبیق ستون های اکسل</h1>
         <p className="mt-2 text-sm leading-6 text-muted">
-          برای هر فیلد، ستون متناظر در فایل را انتخاب کنید. پیش‌نمایش پایین صفحه بلافاصله به‌روز
-          می‌شود تا درستی انتخاب‌ها را بررسی کنید.
+          برای هر فیلد، ستون متناظر در فایل را انتخاب کنید. پیش نمایش پایین صفحه بلافاصله به روز
+          می شود تا درستی انتخاب ها را بررسی کنید.
         </p>
       </header>
 
       <section className="rounded-xl border border-line bg-surface p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-bold text-ink-900">ستون‌های شناسایی‌شده</h3>
+          <h3 className="font-bold text-ink-900">ستون های شناسایی شده</h3>
           <p className="text-xs text-muted">
             برگه «{matrix.sheetLabel}» • {toFaDigits(namedColumns.length)} ستون
           </p>
@@ -93,30 +93,36 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2">
-        {participantFields.map((field) => (
-          <label key={field} className="block">
-            <span className="mb-1.5 block text-sm font-medium text-ink-800">
-              {excelSchema.columns[field].header}
-            </span>
-            <select
-              value={selection[field]}
-              onChange={(event) => updateField(field, event.target.value)}
-              className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink-900"
-            >
-              <option value="">— انتخاب نشده —</option>
-              {namedColumns.map(({ header }) => (
-                <option key={header} value={header}>
-                  {header}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
+        {participantFields.map((field) => {
+          const optional = optionalParticipantFields.includes(field)
+          return (
+            <label key={field} className="block">
+              <span className="mb-1.5 block text-sm font-medium text-ink-800">
+                {excelSchema.columns[field].header}
+                {optional && (
+                  <span className="ms-1.5 text-[10px] font-normal text-muted">(اختیاری)</span>
+                )}
+              </span>
+              <select
+                value={selection[field]}
+                onChange={(event) => updateField(field, event.target.value)}
+                className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink-900"
+              >
+                <option value="">— انتخاب نشده —</option>
+                {namedColumns.map(({ header }) => (
+                  <option key={header} value={header}>
+                    {header}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )
+        })}
       </section>
 
       <section className="overflow-hidden rounded-xl border border-line bg-surface">
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
-          <h3 className="font-bold text-ink-900">پیش‌نمایش نگاشت</h3>
+          <h3 className="font-bold text-ink-900">پیش نمایش نگاشت</h3>
           <p className="text-sm text-muted">{toFaDigits(previewRowCount)} ردیف نخست</p>
         </div>
         <div className="overflow-x-auto">
@@ -148,7 +154,7 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
               {matrix.dataRows.length === 0 && (
                 <tr>
                   <td colSpan={participantFields.length + 1} className="px-4 py-6 text-center text-muted">
-                    هیچ ردیف داده‌ای زیر سرستون‌ها پیدا نشد.
+                    هیچ ردیف داده ای زیر سرستون ها پیدا نشد.
                   </td>
                 </tr>
               )}
@@ -159,7 +165,7 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
 
       {!complete && (
         <p role="alert" className="rounded-lg border border-hogu-100 bg-hogu-100 px-4 py-3 text-sm text-hogu-700">
-          برای تأیید نگاشت، باید برای هر چهار فیلد یک ستون انتخاب شود.
+          برای تأیید نگاشت، باید برای هر چهار فیلد اصلی یک ستون انتخاب شود (وزن kg اختیاری است).
         </p>
       )}
 

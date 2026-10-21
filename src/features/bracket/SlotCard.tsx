@@ -1,41 +1,95 @@
 import { useDroppable } from '@dnd-kit/core'
 import type { Participant, SlotOccupant } from '../../core/types.ts'
+import type { SlotSide } from '../../core/bracket/layout.ts'
 import { ParticipantChip } from './ParticipantChip.tsx'
+import { EmptySlotRow, ByeRow, PositionRow } from './SlotRows.tsx'
+import { ManualSlotEditor } from './ManualSlotEditor.tsx'
+
+/** کلیدهای ویرایش درون خانه — فقط جدول های دستی */
+export interface ManualEditProps {
+  editing: boolean
+  onStart: () => void
+  onSave: (patch: { fullName: string; coachName: string }) => void
+  onEnd: () => void
+}
 
 interface SlotCardProps {
   slotId: string
   occupant: SlotOccupant
   participant?: Participant
+  side: SlotSide
+  nameFontSize?: number
+  coachFontSize?: number
+  showCoach?: boolean
+  /** جدول دستی: کلیک روی خانه، ورودی نام/مربی را باز می کند */
+  manualEdit?: ManualEditProps
 }
 
-export function SlotCard({ slotId, occupant, participant }: SlotCardProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: slotId })
+export function SlotCard({
+  slotId,
+  occupant,
+  participant,
+  side,
+  nameFontSize,
+  coachFontSize,
+  showCoach,
+  manualEdit,
+}: SlotCardProps) {
+  // rest slots («استراحت») are structural — nothing can be dropped on them
+  const { setNodeRef, isOver } = useDroppable({
+    id: slotId,
+    disabled: occupant.kind !== 'participant',
+  })
 
-  if (occupant.kind === 'bye') {
-    return (
-      <div
-        dir="rtl"
-        className="flex h-full w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-line-strong bg-turf px-3 text-center"
-      >
-        <span className="text-xs font-bold text-muted">استراحت</span>
-        <span className="text-[10px] text-muted">(بای — بازی ندارد)</span>
-      </div>
-    )
+  function renderContent() {
+    if (occupant.kind === 'bye') return <ByeRow side={side} />
+    if (manualEdit && participant && manualEdit.editing) {
+      return (
+        <ManualSlotEditor
+          participant={participant}
+          side={side}
+          onSave={manualEdit.onSave}
+          onCancel={manualEdit.onEnd}
+        />
+      )
+    }
+    if (participant) {
+      // خانه بی نام جدول دستی: دعوت به نوشتن به جای ردیف رنگی خالی
+      if (manualEdit && participant.fullName.trim() === '') {
+        return (
+          <button
+            type="button"
+            onClick={manualEdit.onStart}
+            title="نوشتن نام و مربی"
+            className="h-full w-full cursor-text"
+          >
+            <EmptySlotRow side={side} />
+          </button>
+        )
+      }
+      return (
+        <ParticipantChip
+          slotId={slotId}
+          participant={participant}
+          side={side}
+          nameFontSize={nameFontSize}
+          coachFontSize={coachFontSize}
+          showCoach={showCoach}
+          onEditStart={manualEdit?.onStart}
+        />
+      )
+    }
+    return <PositionRow side={side} />
   }
 
   return (
     <div
       ref={setNodeRef}
-      dir="rtl"
-      className={`h-full w-full rounded-lg transition-shadow ${
+      className={`h-full w-full rounded-md transition-shadow ${
         isOver ? 'ring-2 ring-mat-600 ring-offset-1' : ''
       }`}
     >
-      {participant ? (
-        <ParticipantChip slotId={slotId} participant={participant} />
-      ) : (
-        <div className="h-full w-full rounded-lg border border-dashed border-hogu-600 bg-hogu-100" />
-      )}
+      {renderContent()}
     </div>
   )
 }

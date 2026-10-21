@@ -39,8 +39,10 @@ const state = {
     issues: sizeFilter ? [] : roster.issues,
     draws,
     selectedGroupId: selectedGroup,
+    meta: { title: '', subtitle: '', logoDataUrl: null },
+    matchNumberOverrides: {},
   },
-  version: 1,
+  version: 4,
 }
 
 const html = `<!doctype html><html><body><script>

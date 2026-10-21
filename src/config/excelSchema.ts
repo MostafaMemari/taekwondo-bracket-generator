@@ -17,7 +17,14 @@ export const excelSchema = {
       header: 'وزن',
       aliases: ['دسته وزنی', 'وزنه'],
     },
+    weightKg: {
+      header: 'وزن (kg)',
+      aliases: ['وزن کیلوگرم', 'کیلوگرم', 'kg', 'KG', 'Kg'],
+    },
   },
 } as const
 
 export type ParticipantField = keyof typeof excelSchema.columns
+
+/** ستون های اختیاری — نبودن شان در اکسل، ردیف را ناقص نمی کند */
+export const optionalParticipantFields: readonly ParticipantField[] = ['weightKg']

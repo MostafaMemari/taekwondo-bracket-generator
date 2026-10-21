@@ -24,3 +24,13 @@ dist-ssr
 *.sw?
 
 .opencode
+# --- Security: never commit secrets or connection tooling ---
+.env
+.env.*
+!.env.example
+id_ed25519*
+id_rsa*
+*.pem
+*.key
+tool-results/
+*.log

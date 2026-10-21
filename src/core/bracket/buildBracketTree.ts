@@ -7,39 +7,32 @@ import type {
 
 interface RawNode {
   kind: 'leaf' | 'match'
+  /** participants inside this subtree */
+  count: number
   left?: RawNode
   right?: RawNode
 }
 
-interface RoundedNode {
-  source: RawNode
-  rounds: number
-  left?: RoundedNode
-  right?: RoundedNode
-}
-
-function splitRaw(count: number): RawNode {
-  if (count === 1) {
-    return { kind: 'leaf' }
+/**
+ * Classic tournament bracket: the sheet is always a power of two (2, 4, 8, 16,
+ * 32, 64 …) and every absent slot becomes an explicit first-round bye. The
+ * participants are spread with the ceil/floor rule at every level, which puts
+ * the byes at the BOTTOM of each section:
+ *
+ *   N=5 → sheet of 8:  3 athletes on the first side — two of them fight in
+ *   round 1 while the lone one waits below, his opponent being «استراحت» —
+ *   and 2 athletes on the other side, both entering the semifinal on a bye.
+ */
+function splitRaw(count: number, capacity: number): RawNode {
+  if (capacity === 1) {
+    return { kind: 'leaf', count }
   }
+  const leftCount = Math.min(capacity / 2, Math.ceil(count / 2))
   return {
     kind: 'match',
-    left: splitRaw(Math.ceil(count / 2)),
-    right: splitRaw(Math.floor(count / 2)),
-  }
-}
-
-function withRounds(source: RawNode): RoundedNode {
-  if (source.kind === 'leaf') {
-    return { source, rounds: 0 }
-  }
-  const left = withRounds(source.left!)
-  const right = withRounds(source.right!)
-  return {
-    source,
-    rounds: Math.max(left.rounds, right.rounds) + 1,
-    left,
-    right,
+    count,
+    left: splitRaw(leftCount, capacity / 2),
+    right: splitRaw(count - leftCount, capacity / 2),
   }
 }
 
@@ -48,47 +41,76 @@ export function buildBracketTree(participantCount: number): BracketStructure {
     throw new Error('Cannot build a bracket for an empty group')
   }
 
-  const roundedRoot = withRounds(splitRaw(participantCount))
-  const totalRounds = roundedRoot.rounds
+  // a single athlete is the champion without any match
+  if (participantCount === 1) {
+    const leaf: StructureLeaf = { kind: 'leaf', slotId: 'slot-1', entryRound: 1 }
+    return { root: leaf, leaves: [leaf], restSlotIds: [], bracketSize: 1, roundCount: 0 }
+  }
+
+  const bracketSize = 2 ** Math.ceil(Math.log2(participantCount))
+  const totalRounds = Math.round(Math.log2(bracketSize))
+  const root = splitRaw(participantCount, bracketSize)
+
   const leaves: StructureLeaf[] = []
   const matches: StructureMatch[] = []
+  const restSlotIds: string[] = []
 
-  function annotate(node: RoundedNode, parentRound: number): BracketStructureNode {
-    if (node.source.kind === 'leaf') {
+  /**
+   * `entryRound` — the round in which the occupant of a leaf actually fights.
+   * Leaf children of a match holding 2+ participants fight in that match;
+   * below a match with a single participant (walkover) the pending round is
+   * passed through untouched, so the waiting athlete enters the next round
+   * while the sibling slot stays empty («استراحت»).
+   */
+  function annotate(node: RawNode, depth: number, pendingRound: number): BracketStructureNode {
+    if (node.kind === 'leaf') {
+      if (node.count === 0) restSlotIds.push(`slot-${leaves.length + 1}`)
       const leaf: StructureLeaf = {
         kind: 'leaf',
         slotId: `slot-${leaves.length + 1}`,
-        entryRound: Math.max(parentRound, 1),
+        entryRound: Math.max(pendingRound, 1),
       }
       leaves.push(leaf)
       return leaf
     }
+    const round = Math.max(totalRounds - depth, 1)
+    const nextPending = node.count >= 2 ? round : pendingRound
     const match: StructureMatch = {
       kind: 'match',
       matchId: '',
       matchNumber: 0,
-      round: node.rounds,
-      left: annotate(node.left!, node.rounds),
-      right: annotate(node.right!, node.rounds),
+      round,
+      entrantCount: node.count,
+      left: annotate(node.left!, depth + 1, nextPending),
+      right: annotate(node.right!, depth + 1, nextPending),
     }
     matches.push(match)
     return match
   }
 
-  const root = annotate(roundedRoot, 0)
+  const structureRoot = annotate(root, 0, 1)
 
-  matches
-    .slice()
-    .sort((a, b) => a.round - b.round)
-    .forEach((match, index) => {
-      match.matchNumber = index + 1
-      match.matchId = `match-${index + 1}`
-    })
+  // only genuinely contested matches (both corners reach the mat) get a
+  // number, ordered round 1 → final like a real draw sheet; walkovers stay
+  // unnumbered
+  let contestedIndex = 0
+  let walkoverIndex = 0
+  for (const match of matches.slice().sort((a, b) => a.round - b.round)) {
+    if (match.entrantCount >= 2) {
+      contestedIndex += 1
+      match.matchNumber = contestedIndex
+      match.matchId = `match-${contestedIndex}`
+    } else {
+      walkoverIndex += 1
+      match.matchId = `match-bye-${walkoverIndex}`
+    }
+  }
 
   return {
-    root,
+    root: structureRoot,
     leaves,
-    byeSlotIds: leaves.filter((leaf) => leaf.entryRound > 1).map((leaf) => leaf.slotId),
+    restSlotIds,
+    bracketSize,
     roundCount: totalRounds,
   }
 }

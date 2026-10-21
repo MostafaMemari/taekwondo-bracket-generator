@@ -94,3 +94,108 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- direct printer output ---------- */
+/* keep the corner colours and number chips on paper */
+.print-page,
+.print-page * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.schedule-print-root,
+.schedule-print-root * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* schedule sheet: 794px on screen (A4 portrait @96dpi) */
+.schedule-sheet-wrap {
+  width: 794px;
+  max-width: 100%;
+  background: #ffffff;
+}
+
+/* each draw sheet fills exactly one A4 landscape page */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    gap: 0 !important;
+  }
+
+  .print-page {
+    width: 297mm;
+    height: 210mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* schedule: A4 portrait flow (the @page override is injected by the route) */
+  .schedule-print-root {
+    display: block !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    gap: 0 !important;
+  }
+
+  .schedule-sheet-wrap {
+    width: 210mm !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
+  .schedule-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* floating coach drawer: slides in from the left edge (page is RTL) */
+@keyframes drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-drawer-in {
+  animation: drawer-in 0.22s ease-out both;
+}
+
+@media print {
+  .animate-drawer-in {
+    animation: none;
+  }
+}

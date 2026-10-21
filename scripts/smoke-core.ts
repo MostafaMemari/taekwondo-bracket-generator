@@ -2,10 +2,23 @@ import { assignByes } from '../src/core/bracket/byeStrategy.ts'
 import { buildBracketTree } from '../src/core/bracket/buildBracketTree.ts'
 import { distributeByCoach } from '../src/core/bracket/coachSeparationStrategy.ts'
 import { generateGroupDraw } from '../src/core/bracket/generateGroupDraw.ts'
-import { computeBracketLayout } from '../src/core/bracket/layout.ts'
+import {
+  attachBronzeMatch,
+  medalRainPoolSizes,
+  splitMedalRainPools,
+} from '../src/core/bracket/medalRain.ts'
+import {
+  BAND_ROWS,
+  buildStagedPrintPlans,
+  computeBracketLayout,
+  computePlanLayout,
+  fitPrintDims,
+} from '../src/core/bracket/layout.ts'
 import { tournamentRules } from '../src/config/tournamentRules.ts'
 import { groupByCategory } from '../src/core/grouping/groupByCategory.ts'
-import type { Participant } from '../src/core/types.ts'
+import { buildSchedule, flattenGroupMatches } from '../src/core/schedule/schedule.ts'
+import type { BracketStructureNode, Participant } from '../src/core/types.ts'
+import { realMatchCount } from '../src/lib/drawStats.ts'
 
 let failures = 0
 
@@ -29,6 +42,7 @@ function makeParticipants(counts: Record<string, number>): Participant[] {
         coachName,
         ageCategory: 'کودکان',
         weightCategory: '۲۸-',
+        weightKg: '',
         sourceRow: row++,
       })
     }
@@ -36,48 +50,99 @@ function makeParticipants(counts: Record<string, number>): Participant[] {
   return participants
 }
 
-for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 12]) {
+/** power-of-two sheet sizes for every participant count */
+const expectedSize = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(n, 2)))
+
+for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 17, 33]) {
   const structure = buildBracketTree(n)
-  check(`N=${n} leaves == participants`, structure.leaves.length === n)
-  const matches = structure.roundCount
-  check(`N=${n} roundCount >= 1`, matches >= 1)
+  const size = n === 1 ? 1 : expectedSize(n)
+  check(`N=${n} bracketSize is ${size}`, structure.bracketSize === size)
+  check(`N=${n} leaves == bracketSize`, structure.leaves.length === size)
+  check(`N=${n} rest slots == size - n`, structure.restSlotIds.length === size - n)
 
   const collected: string[] = []
-  function walk(node: typeof structure.root): void {
+  function walk(node: BracketStructureNode): void {
     if (node.kind === 'leaf') {
       collected.push(node.slotId)
       return
     }
+    check(`N=${n} match ${node.matchId} round sane`, node.round >= 1 && node.round <= structure.roundCount)
     walk(node.left)
     walk(node.right)
   }
   walk(structure.root)
-  check(`N=${n} unique slot ids`, new Set(collected).size === n)
+  check(`N=${n} unique slot ids`, new Set(collected).size === size)
+
+  // contested matches eliminate exactly one athlete each
+  let contested = 0
+  let walkovers = 0
+  function countMatches(node: BracketStructureNode): void {
+    if (node.kind === 'leaf') return
+    if (node.matchNumber > 0) contested += 1
+    else walkovers += 1
+    countMatches(node.left)
+    countMatches(node.right)
+  }
+  countMatches(structure.root)
+  check(`N=${n} contested == n-1`, contested === n - 1)
+  check(`N=${n} numbering has no gaps`, contested + walkovers === size - 1)
 }
 
 const five = buildBracketTree(5)
-check('N=5 has exactly one bye', five.byeSlotIds.length === 1)
-check('N=5 has three rounds', five.roundCount === 3)
-const fiveFirstRoundMatches: number[] = []
-function collectRound(node: typeof five.root, out: number[]): void {
-  if (node.kind === 'match') {
-    if (node.round === 1) out.push(node.matchNumber)
-    collectRound(node.left, out)
-    collectRound(node.right, out)
-  }
+check('N=5 sheet of 8, three rounds', five.bracketSize === 8 && five.roundCount === 3)
+check('N=5 three rest slots', five.restSlotIds.length === 3)
+
+const roundStats = new Map<number, { total: number; contested: number }>()
+function stats(node: typeof five.root): void {
+  if (node.kind === 'leaf') return
+  const entry = roundStats.get(node.round) ?? { total: 0, contested: 0 }
+  entry.total += 1
+  if (node.matchNumber > 0) entry.contested += 1
+  roundStats.set(node.round, entry)
+  stats(node.left)
+  stats(node.right)
 }
-collectRound(five.root, fiveFirstRoundMatches)
-check('N=5 first round has two matches', fiveFirstRoundMatches.length === 2)
+stats(five.root)
+check('N=5 round 1 has four matches, one contested', roundStats.get(1)?.total === 4 && roundStats.get(1)?.contested === 1)
+check('N=5 round 2 has two contested semis', roundStats.get(2)?.total === 2 && roundStats.get(2)?.contested === 2)
+check('N=5 round 3 is only the final', roundStats.get(3)?.total === 1 && roundStats.get(3)?.contested === 1)
+
+// user rule: 5 athletes → 3 on the first side (2 fight, the lone one waits
+// below with a bye), 2 on the other side (both wait for the semifinal)
+function halfParticipants(node: typeof five.root, side: 'left' | 'right'): number {
+  const sub = node[side]
+  let count = 0
+  function walk(current: typeof five.root): void {
+    if (current.kind === 'leaf') {
+      count += current.entryRound > 0 && !five.restSlotIds.includes(current.slotId) ? 1 : 0
+      return
+    }
+    walk(current.left)
+    walk(current.right)
+  }
+  walk(sub)
+  return count
+}
+check('N=5 first side holds 3 athletes', halfParticipants(five.root, 'left') === 3)
+check('N=5 second side holds 2 athletes', halfParticipants(five.root, 'right') === 2)
 
 const three = buildBracketTree(3)
-check('N=3 has one bye entering round 2', three.byeSlotIds.length === 1)
-const byeLeaf = three.leaves.find((l) => l.entryRound > 1)!
-check('N=3 bye enters semifinal (round 2)', byeLeaf.entryRound === 2)
+check('N=3 sheet of 4 with one rest slot', three.bracketSize === 4 && three.restSlotIds.length === 1)
+const waitingLeaf = three.leaves.find((l) => l.entryRound === 2)!
+check('N=3 waiting athlete enters the final round', waitingLeaf.entryRound === 2)
+
+const two = buildBracketTree(2)
+check('N=2 is a single final', two.roundCount === 1 && two.bracketSize === 2)
 
 const rezaei = makeParticipants({ 'رضایی': 3, 'محمدی': 2 })
 const structure5 = buildBracketTree(5)
-const byeAssignment = assignByes(rezaei, structure5.byeSlotIds)
-const byeParticipant = rezaei.find((p) => p.id === byeAssignment.placements[structure5.byeSlotIds[0]])
+const restSet = new Set(structure5.restSlotIds)
+const waitSlots = structure5.leaves
+  .filter((leaf) => leaf.entryRound > 1 && !restSet.has(leaf.slotId))
+  .map((leaf) => ({ slotId: leaf.slotId, matchId: 'm' }))
+check('N=5 has three bye slots for the biggest teams', waitSlots.length === 3)
+const byeAssignment = assignByes(rezaei, waitSlots)
+const byeParticipant = rezaei.find((p) => p.id === byeAssignment.placements[waitSlots[0].slotId])
 check('bye goes to coach with most students', byeParticipant?.coachName === 'رضایی')
 
 const spread = distributeByCoach(rezaei, ['s1', 's2', 's3', 's4', 's5'])
@@ -94,9 +159,24 @@ const group = groupByCategory(rezaei)[0]
 const draw = generateGroupDraw(group, Object.fromEntries(rezaei.map((p) => [p.id, p])), tournamentRules)
 const occupants = Object.values(draw.assignments)
 const participantSlots = occupants.filter((o) => o.kind === 'participant')
-check('every slot filled', occupants.length === 5)
-check('all participants placed exactly once', participantSlots.length === 5)
+check('every athlete slot filled, rest slots empty', participantSlots.length === 5 && occupants.length === 8)
+check('all participants placed exactly once', new Set(participantSlots.map((o) => o.participantId)).size === 5)
 check('history starts empty', draw.history.length === 0)
+
+// every non-rest slot is filled exactly once, for every size
+for (let n = 2; n <= 12; n += 1) {
+  const squad = makeParticipants({ 'الف': n })
+  const g = groupByCategory(squad)[0]
+  const d = generateGroupDraw(g, Object.fromEntries(squad.map((p) => [p.id, p])), tournamentRules)
+  const placed = Object.values(d.assignments).filter((o) => o.kind === 'participant')
+  const filledSlots = Object.entries(d.assignments).filter(([, o]) => o.kind === 'participant')
+  check(
+    `N=${n} draw fills every non-rest slot once`,
+    placed.length === n &&
+      new Set(placed.map((o) => o.participantId)).size === n &&
+      filledSlots.length === d.structure.bracketSize - d.structure.restSlotIds.length,
+  )
+}
 
 const layout = computeBracketLayout(draw.structure, {
   cardWidth: 200,
@@ -106,17 +186,103 @@ const layout = computeBracketLayout(draw.structure, {
   padX: 20,
   padTop: 50,
   padBottom: 20,
-  matchHeaderHeight: 24,
-  matchInnerGap: 8,
+  boxPad: 6,
+  innerGap: 8,
+  chipSize: 22,
 })
-check(
-  'layout has no NaN coordinates',
-  [...layout.cards, ...layout.matches].every(
+check('layout has no NaN coordinates',
+  layout.matches.every(
     (item) => Number.isFinite(item.x) && Number.isFinite(item.y),
   ),
 )
 check('width and height positive', layout.width > 0 && layout.height > 0)
-check('columns match rounds', layout.columns.length === draw.structure.roundCount)
+// converging layout: one label per round per side + the centred final
+check('columns cover both sides plus final', layout.columns.length === 2 * draw.structure.roundCount - 1)
+const finalColumn = layout.columns[0]
+check('final column is centred', Math.abs(finalColumn.x - layout.width / 2) < 0.01)
+check('final match is the widest-positioned centre box', layout.matches.some(
+  (match) => match.matchId === 'match-4' && Math.abs(match.x + match.width / 2 - layout.width / 2) < 0.01,
+))
+// user rule: numbering and placement start from the LEFT edge — match №1 (the
+// first side's round-1 fight, 2 of the 3 left athletes) sits left of centre,
+// the second side's semifinal sits right of centre
+const firstMatchBox = layout.matches.find((match) => match.matchId === 'match-1')!
+check('match 1 sits on the LEFT half of the sheet', firstMatchBox.x + firstMatchBox.width / 2 < layout.width / 2)
+const thirdMatchBox = layout.matches.find((match) => match.matchId === 'match-3')!
+check('match 3 (second side semifinal) sits on the RIGHT half', thirdMatchBox.x + thirdMatchBox.width / 2 > layout.width / 2)
+check('match 1 badge faces the centre from the left wing',
+  Math.abs(firstMatchBox.chipX - (firstMatchBox.x + firstMatchBox.width)) < 0.01,
+)
+check('match rows stay inside their boxes', layout.matches.every(
+  (match) =>
+    match.topRowOffset > 0 &&
+    match.bottomRowOffset > match.topRowOffset &&
+    match.bottomRowOffset < match.height,
+))
+const testCardHalf = 25 // cardHeight 50 in the dims below
+check('slot rows fit vertically inside their boxes', layout.matches.every(
+  (match) =>
+    match.topRowOffset - testCardHalf >= -0.01 &&
+    match.bottomRowOffset + testCardHalf <= match.height + 0.01,
+))
+check('match chips have finite centres', layout.matches.every(
+  (match) => Number.isFinite(match.chipX) && Number.isFinite(match.chipY),
+))
+check('connectors are straight, jogged or champion paths', layout.connectors.every(
+  (points) => points.length === 2 || points.length === 4,
+))
+check('champion plate hangs below the final', layout.champion !== null && layout.champion.y > 0)
+
+// ————— staged print plans: big brackets split into clean same-size pages —————
+const stagedDims = fitPrintDims(4, 1060)
+const staged = buildStagedPrintPlans(buildBracketTree(32))
+check('32 draw → two band pages + one final page', staged.length === 3 && staged[0].kind === 'band' && staged[2].kind === 'final')
+check('band pages carry 8 rows each', staged[0].rowTo! - staged[0].rowFrom! === BAND_ROWS && staged[1].rowTo === 16)
+const bandLayout = computePlanLayout(staged[0].plan, stagedDims)
+check('band page shows rounds 1-3 of both wings (7 boxes per wing)',
+  bandLayout.matches.length === 14 &&
+  bandLayout.matches.filter((m) => m.round === 1).length === 8 &&
+  bandLayout.matches.filter((m) => m.round === 2).length === 4 &&
+  bandLayout.matches.filter((m) => m.round === 3).length === 2,
+)
+check('band page fits one A4 landscape body',
+  bandLayout.height + 104 + 8 + 30 <= 770 && bandLayout.width <= 1060,
+)
+check('band page has a continue point and no champion', bandLayout.continuePoint !== null && bandLayout.champion === null)
+check('band pages keep every first-round slot exactly once',
+  new Set(staged.slice(0, 2).flatMap((p) => collectSlotIds(p.plan))).size === 32,
+)
+const finalLayout = computePlanLayout(staged[2].plan, fitPrintDims(staged[2].columns, 1060))
+check('final page = semifinals + final with «برنده مسابقه» leaves',
+  finalLayout.matches.length === 3 &&
+  finalLayout.matches.some((m) => m.topWinner !== null || m.bottomWinner !== null) &&
+  finalLayout.champion !== null && finalLayout.continuePoint === null,
+)
+check('final page fits one A4 landscape body with the results table',
+  finalLayout.height + 104 + 8 + 126 + 34 <= 770,
+)
+const staged64 = buildStagedPrintPlans(buildBracketTree(64))
+check('64 draw → four band pages + one final page', staged64.length === 5 && staged64[4].kind === 'final')
+const staged16 = buildStagedPrintPlans(buildBracketTree(16))
+check('16 draw stays a single full page', staged16.length === 1 && staged16[0].kind === 'full')
+
+function collectSlotIds(plan: unknown): string[] {
+  const node = plan as { kind: string; slotId?: string; left?: unknown; right?: unknown }
+  if (node.kind === 'slot' && node.slotId) return [node.slotId]
+  if (node.kind === 'match') {
+    return [...collectSlotIds(node.left), ...collectSlotIds(node.right)]
+  }
+  return []
+}
+const finalMatch5 = layout.matches.find((match) => match.matchId === 'match-4')!
+check(
+  'N=5 final shows two placeholder rows (no inline slots)',
+  finalMatch5.topSlotId === null && finalMatch5.bottomSlotId === null,
+)
+check('every contested non-final match owns a connector chip', layout.matches
+  .filter((match) => match.contested && match.round < draw.structure.roundCount)
+  .every((match) => Number.isFinite(match.chipX) && Number.isFinite(match.chipY)))
+check('walkover boxes are marked uncontested', layout.matches.filter((m) => !m.contested).length === 3)
 
 const single = buildBracketTree(1)
 check('N=1 single leaf, zero rounds', single.leaves.length === 1 && single.roundCount === 0)
@@ -128,10 +294,333 @@ const singleLayout = computeBracketLayout(single, {
   padX: 20,
   padTop: 50,
   padBottom: 20,
-  matchHeaderHeight: 24,
-  matchInnerGap: 8,
+  boxPad: 6,
+  innerGap: 8,
+  chipSize: 22,
 })
-check('N=1 layout renders one card area', singleLayout.width > 0)
+check('N=1 layout renders one card area', singleLayout.width > 0 && singleLayout.champion === null)
+
+// ---------- mat/session schedule (برنامه ریزی زمین ها) ----------
+
+function makeScheduleParticipants(
+  specs: Array<{ age: string; weight: string; count: number }>,
+): Participant[] {
+  const participants: Participant[] = []
+  let row = 2
+  for (const spec of specs) {
+    for (let i = 0; i < spec.count; i += 1) {
+      participants.push({
+        id: `${spec.age}-${spec.weight}-${i}`,
+        fullName: `ورزشکار ${i + 1} ${spec.weight}`,
+        coachName: `مربی ${i % 3}`,
+        ageCategory: spec.age,
+        weightCategory: spec.weight,
+        weightKg: '',
+        sourceRow: row++,
+      })
+    }
+  }
+  return participants
+}
+
+const scheduleSquad = makeScheduleParticipants([
+  { age: 'کودکان', weight: '۲۸-', count: 5 },
+  { age: 'کودکان', weight: '۳۵+', count: 3 },
+  { age: 'نوجوانان', weight: '۴۵-', count: 6 },
+  { age: 'نوجوانان', weight: '۵۳+', count: 2 },
+  { age: 'جوانان', weight: '۶۶+', count: 1 },
+])
+const scheduleByIdMap = new Map(scheduleSquad.map((p) => [p.id, p]))
+const scheduleByIdRecord = Object.fromEntries(scheduleSquad.map((p) => [p.id, p]))
+const scheduleDraws: Record<string, ReturnType<typeof generateGroupDraw>> = Object.fromEntries(
+  groupByCategory(scheduleSquad).map((g) => [g.id, generateGroupDraw(g, scheduleByIdRecord, tournamentRules)]),
+)
+const groupIdOf = (age: string, weight: string): string => {
+  const found = Object.values(scheduleDraws).find(
+    (d) => d.group.ageCategory === age && d.group.weightCategory === weight,
+  )
+  if (!found) throw new Error(`missing draw ${age} ${weight}`)
+  return found.groupId
+}
+
+const G28 = groupIdOf('کودکان', '۲۸-')
+const G35 = groupIdOf('کودکان', '۳۵+')
+const G45 = groupIdOf('نوجوانان', '۴۵-')
+const G53 = groupIdOf('نوجوانان', '۵۳+')
+const G66 = groupIdOf('جوانان', '۶۶+')
+
+check('2-person weight → exactly the final', flattenGroupMatches(scheduleDraws[G53], scheduleByIdMap).length === 1)
+check('3-person weight → 2 real matches (walkover unnumbered)', flattenGroupMatches(scheduleDraws[G35], scheduleByIdMap).length === 2)
+
+const sessionA = {
+  id: 's1',
+  timeFrom: '۸:۰۰',
+  timeTo: '۱۰:۰۰',
+  mats: [
+    { id: 'm1', label: 'زمین ۱', groupIds: [G28, G45] },
+    { id: 'm2', label: 'زمین ۲', groupIds: [G35, G53] },
+  ],
+}
+const builtA = buildSchedule([sessionA], scheduleDraws, scheduleByIdMap)
+check('schedule totals 12 matches', builtA.totalMatches === 12)
+const mat1A = builtA.sessions[0].mats[0]
+const mat2A = builtA.sessions[0].mats[1]
+// هر زمین شماره مخصوص خودش را دارد — شمارش هر زمین از ۱ شروع می شود
+check('mat 1 numbers are 1..9 contiguous',
+  mat1A.firstSeq === 1 && mat1A.lastSeq === 9 &&
+  mat1A.weights.flatMap((w) => w.matches.map((m) => m.seq)).sort((a, b) => a - b).join(',') ===
+    Array.from({ length: 9 }, (_, i) => String(i + 1)).join(','))
+check('mat 2 restarts from 1 (1..3)', mat2A.firstSeq === 1 && mat2A.lastSeq === 3)
+check('mat 1 heaviest weight first (۴۵- با ۵ مسابقه)', mat1A.weights[0].groupId === G45 && mat1A.weights[0].matchCount === 5)
+check('mat 2 orders ۲مسابقه ای پیش از تک مسابقه', mat2A.weights[0].groupId === G35)
+check('solo weight never enters the schedule', !builtA.assignedGroupIds.includes(G66))
+
+const w28 = mat1A.weights.find((w) => w.groupId === G28)!
+const w45 = mat1A.weights.find((w) => w.groupId === G45)!
+check('28kg lists its 4 matches with ascending rounds',
+  w28.matches.length === 4 && w28.matches.every((m, i, arr) => i === 0 || m.round >= arr[i - 1].round))
+const w28Final = w28.matches[w28.matches.length - 1]
+check('28kg final sides are «winner of» refs', w28Final.chong.kind === 'winnerOf' && w28Final.hong.kind === 'winnerOf')
+if (w28Final.chong.kind === 'winnerOf' && w28Final.hong.kind === 'winnerOf') {
+  const chongSeq = builtA.seqByKey.get(`${G28}/${w28Final.chong.matchId}`)!
+  const hongSeq = builtA.seqByKey.get(`${G28}/${w28Final.hong.matchId}`)!
+  check('winner refs point to earlier numbers', chongSeq < w28Final.seq && hongSeq < w28Final.seq)
+}
+check('round-1 sides resolve to real athlete names',
+  w28.matches.some((m) => m.round === 1 && m.chong.kind === 'athlete' && m.chong.name !== '—'))
+
+// round-robin: دور اول همه وزن ها (پرمسابقه تر اول)، بعد دور دوم و تا فینال
+check('round-robin: 45kg round-1 opens the count (1,2)',
+  w45.matches.filter((m) => m.round === 1).map((m) => m.seq).join(',') === '1,2')
+check('round-robin: 28kg round-1 follows at 3',
+  w28.matches.find((m) => m.round === 1)!.seq === 3)
+check('round-robin: 45kg numbers sweep per round (1,2,4,5,8)',
+  w45.matches.map((m) => m.seq).join(',') === '1,2,4,5,8')
+check('round-robin: 28kg numbers sweep per round (3,6,7,9)',
+  w28.matches.map((m) => m.seq).join(',') === '3,6,7,9')
+check('finals land on the last numbers of their mat',
+  w45.matches[w45.matches.length - 1].seq === 8 &&
+  w28.matches[w28.matches.length - 1].seq === 9 &&
+  mat1A.lastSeq === 9)
+
+const w35B = mat2A.weights.find((w) => w.groupId === G35)!
+const w53B = mat2A.weights.find((w) => w.groupId === G53)!
+check('round-robin: 35kg round-1 = 1, single-match 53+ = 2',
+  w35B.matches.find((m) => m.round === 1)!.seq === 1 && w53B.matches[0].seq === 2)
+check('the very last number of mat 2 is a final (35+ final = 3)',
+  w35B.matches[w35B.matches.length - 1].seq === 3 && mat2A.lastSeq === 3)
+check('each weight final is the highest number of its own weight',
+  [...mat1A.weights, ...mat2A.weights].every((w) => {
+    const finalMatch = w.matches.find((m) => m.round === w.roundCount)!
+    return w.matches.every((m) => m.seq <= finalMatch.seq)
+  }))
+
+const sessionB1 = { id: 's1', timeFrom: '۸:۰۰', timeTo: '۱۰:۰۰', mats: [{ id: 'm1', label: 'زمین ۱', groupIds: [G28] }] }
+const sessionB2 = { id: 's2', timeFrom: '۱۰:۰۰', timeTo: '۱۲:۰۰', mats: [{ id: 'm2', label: 'زمین ۱', groupIds: [G45] }] }
+const builtNextSession = buildSchedule([sessionB1, sessionB2], scheduleDraws, scheduleByIdMap)
+check('a mat in the next session starts from 1 again',
+  builtNextSession.sessions[1].mats[0].firstSeq === 1 && builtNextSession.sessions[1].mats[0].lastSeq === 5)
+const sessionC = {
+  id: 's3',
+  timeFrom: '۸:۰۰',
+  timeTo: '۱۰:۰۰',
+  mats: [
+    { id: 'c1', label: 'زمین ۱', groupIds: [G28] },
+    { id: 'c2', label: 'زمین ۲', groupIds: [G45] },
+  ],
+}
+const builtSameSession = buildSchedule([sessionC], scheduleDraws, scheduleByIdMap)
+check('two mats of one session both count from 1',
+  builtSameSession.sessions[0].mats[0].firstSeq === 1 && builtSameSession.sessions[0].mats[1].firstSeq === 1 &&
+  builtSameSession.sessions[0].mats[1].lastSeq === 5)
+
+// ————— باران مدال: تقسیم جدول ها، جداسازی مربی ها و مسابقه رده بندی —————
+
+check('pool sizes: 7 → 4 + 3', medalRainPoolSizes(7).join(',') === '4,3')
+check('pool sizes: 10 → 4 + 4 + 2', medalRainPoolSizes(10).join(',') === '4,4,2')
+check('pool sizes: 11 → 4 + 4 + 3', medalRainPoolSizes(11).join(',') === '4,4,3')
+check('pool sizes: 8 → 4 + 4', medalRainPoolSizes(8).join(',') === '4,4')
+check('pool sizes: 5 → 3 + 2 (no medal without a fight)', medalRainPoolSizes(5).join(',') === '3,2')
+check('pool sizes: 9 → 4 + 3 + 2', medalRainPoolSizes(9).join(',') === '4,3,2')
+check('pool sizes: 4 → 4', medalRainPoolSizes(4).join(',') === '4')
+check('pool sizes: 1 → solo pool', medalRainPoolSizes(1).join(',') === '1')
+
+/** همان مربی دو بار در یک نیمه نهایی نیفتد (جدول ۴ نفره) */
+function sameHalfCollision(seated: string[]): boolean {
+  const firstHalf = seated.slice(0, 2)
+  const secondHalf = seated.slice(2, 4)
+  const duplicated = (half: string[]): boolean =>
+    half.some((name, index) => half.indexOf(name) !== index)
+  return duplicated(firstHalf) || duplicated(secondHalf)
+}
+
+// ۲۰ قرعه تصادفی — قانون ها باید در همه شان برقرار بمانند
+for (let iteration = 0; iteration < 20; iteration += 1) {
+  const rows = [
+    ...Array.from({ length: 2 }, (_, i) => ({ fullName: `a${i}`, coachName: 'استاد الف' })),
+    ...Array.from({ length: 2 }, (_, i) => ({ fullName: `b${i}`, coachName: 'استاد ب' })),
+    ...Array.from({ length: 2 }, (_, i) => ({ fullName: `c${i}`, coachName: 'استاد پ' })),
+    { fullName: 'd0', coachName: 'استاد ت' },
+  ]
+  const pools = splitMedalRainPools(rows)
+  check(
+    `rain 7 → two pools of 4 and 3 (draw ${iteration})`,
+    pools.length === 2 &&
+      pools.map((pool) => pool.athletes.length).sort().join(',') === '3,4',
+  )
+  const allNames = pools.flatMap((pool) => pool.athletes.map((athlete) => athlete.fullName))
+  check(
+    `rain 7 → every athlete exactly once (draw ${iteration})`,
+    new Set(allNames).size === 7 && allNames.length === 7,
+  )
+  for (const [poolIndex, pool] of pools.entries()) {
+    const byCoach = new Map<string, number>()
+    for (const athlete of pool.athletes) {
+      byCoach.set(athlete.coachName, (byCoach.get(athlete.coachName) ?? 0) + 1)
+    }
+    check(
+      `rain 7 → no coach twice in pool ${poolIndex + 1} (draw ${iteration})`,
+      [...byCoach.values()].every((count) => count <= 1),
+    )
+    if (pool.athletes.length === 4) {
+      check(
+        `rain 7 → 4-pool seats without same-half clash (draw ${iteration})`,
+        !sameHalfCollision(pool.athletes.map((athlete) => athlete.coachName)),
+      )
+    }
+  }
+}
+
+// مربی پرهنرجوتر از تعداد جدول ها — pigeonhole: حداکثر دو هنرجو در هر جدول
+// و نشستن دو طرف نیمه نهایی (۱۱ نفر → ۳ جدول ۴ و ۴ و ۳)
+for (let iteration = 0; iteration < 20; iteration += 1) {
+  const others = ['الف', 'ب', 'پ', 'ت', 'ث', 'ج'].map((coach, index) => ({
+    fullName: `o${index}`,
+    coachName: `استاد ${coach}`,
+  }))
+  const rows = [
+    ...Array.from({ length: 5 }, (_, i) => ({ fullName: `x${i}`, coachName: 'استاد پر' })),
+    ...others,
+  ]
+  const pools = splitMedalRainPools(rows)
+  check(
+    `rain pigeonhole → pools of 4 and 4 and 3 (draw ${iteration})`,
+    pools.map((pool) => pool.athletes.length).join(',') === '4,4,3',
+  )
+  for (const pool of pools) {
+    const crowded = pool.athletes.filter((athlete) => athlete.coachName === 'استاد پر').length
+    check(`rain pigeonhole → max 2 per pool (draw ${iteration})`, crowded <= 2)
+    if (crowded === 2 && pool.athletes.length === 4) {
+      check(
+        `rain pigeonhole → crowded pair on opposite semifinals (draw ${iteration})`,
+        !sameHalfCollision(pool.athletes.map((athlete) => athlete.coachName)),
+      )
+      check(
+        `rain pigeonhole → opposite semifinal carries a warning-free layout (draw ${iteration})`,
+        pool.warnings.length === 0,
+      )
+    }
+  }
+}
+
+// جدول ۳ نفره — استراحت به هنرجویی می رسد که مربی اش در جدول دیگری هست
+for (let iteration = 0; iteration < 10; iteration += 1) {
+  const rows = [
+    { fullName: 'p0', coachName: 'استاد اول' },
+    { fullName: 'q0', coachName: 'استاد دوم' },
+    { fullName: 'p1', coachName: 'استاد اول' },
+    { fullName: 'r0', coachName: 'استاد سوم' },
+    { fullName: 's0', coachName: 'استاد چهارم' },
+  ]
+  const pools = splitMedalRainPools(rows)
+  const triple = pools.find((pool) => pool.athletes.length === 3)
+  check(
+    `rain 5 → a 3-pool exists with the linked coach resting (draw ${iteration})`,
+    triple !== undefined && triple.athletes[0].coachName === 'استاد اول',
+  )
+}
+
+// مسابقه رده بندی — چسباندن به ساختار ۴ نفره و شماره گذاری
+const bronzeStructure = attachBronzeMatch(buildBracketTree(4))
+check('bronze: attached to a 4-bracket', bronzeStructure.bronzeMatch !== undefined)
+check('bronze: match number 3, final bumped to 4', (() => {
+  const numbers: number[] = []
+  function walk(node: BracketStructureNode): void {
+    if (node.kind === 'match') {
+      numbers.push(node.matchNumber)
+      walk(node.left)
+      walk(node.right)
+    }
+  }
+  walk(bronzeStructure.root)
+  return numbers.sort((a, b) => a - b).join(',') === '1,2,4' && bronzeStructure.bronzeMatch!.matchNumber === 3
+})())
+check('bronze: fromMatches are the two semifinals', (() => {
+  const bronze = bronzeStructure.bronzeMatch!
+  return bronze.fromMatches.map((ref) => ref.matchNumber).join(',') === '1,2'
+})())
+check('bronze: other sizes untouched', attachBronzeMatch(buildBracketTree(8)).bronzeMatch === undefined)
+check('bronze: attaching twice is harmless', attachBronzeMatch(bronzeStructure) === bronzeStructure)
+
+const bronzeSquad = makeParticipants({ 'رضایی': 2, 'محمدی': 2 })
+const bronzeGroup = groupByCategory(bronzeSquad)[0]
+const bronzeDraw = generateGroupDraw(
+  bronzeGroup,
+  Object.fromEntries(bronzeSquad.map((p) => [p.id, p])),
+  tournamentRules,
+  { bronze: true },
+)
+check('draw with bronze: structure carries the bronze match', bronzeDraw.structure.bronzeMatch !== undefined)
+check('draw with bronze: realMatchCount counts 4', realMatchCount(bronzeDraw) === 4)
+const bronzeById = new Map(bronzeSquad.map((p) => [p.id, p]))
+const bronzeFlat = flattenGroupMatches(bronzeDraw, bronzeById)
+check('bronze: schedule lists 4 matches in order SF, SF, bronze, final',
+  bronzeFlat.length === 4 &&
+  bronzeFlat.map((match) => match.matchNumber).join(',') === '1,2,3,4' &&
+  bronzeFlat[2].bronze === true &&
+  bronzeFlat[3].matchNumber === 4,
+)
+check('bronze: schedule sides are loser refs',
+  bronzeFlat[2].chong.kind === 'loserOf' && bronzeFlat[2].hong.kind === 'loserOf',
+)
+
+const bronzeLayout = computeBracketLayout(bronzeDraw.structure, {
+  cardWidth: 150,
+  cardHeight: 38,
+  rowHeight: 54,
+  columnPitch: 250,
+  padX: 26,
+  padTop: 34,
+  padBottom: 18,
+  boxPad: 4,
+  innerGap: 6,
+  chipSize: 24,
+})
+const bronzeBox = bronzeLayout.matches.find((match) => match.bronze)
+check('bronze: layout draws the bronze box below the champion plate',
+  bronzeBox !== undefined &&
+  bronzeLayout.champion !== null &&
+  bronzeBox.y > bronzeLayout.champion.y + bronzeLayout.champion.height,
+)
+check('bronze: loser rows label the two semifinals',
+  bronzeBox !== undefined && bronzeBox.topLoser === 1 && bronzeBox.bottomLoser === 2,
+)
+check('bronze: layout stays finite and grows',
+  bronzeLayout.height > 0 && bronzeLayout.matches.every((match) => Number.isFinite(match.y)),
+)
+
+// برنامه زمین ها با وزن باران مدال — رده بندی درست قبل از فینال شماره می خورد
+const rainSession = {
+  id: 'sr',
+  timeFrom: '۸:۰۰',
+  timeTo: '۱۰:۰۰',
+  mats: [{ id: 'mr', label: 'زمین ۱', groupIds: [bronzeGroup.id] }],
+}
+const rainSchedule = buildSchedule([rainSession], { [bronzeGroup.id]: bronzeDraw }, bronzeById)
+const rainMatches = rainSchedule.sessions[0].mats[0].weights[0].matches
+check('bronze: mat numbering runs SF(1,2) → bronze(3) → final(4)',
+  rainMatches.map((match) => match.seq).join(',') === '1,2,3,4',
+)
 
 if (failures > 0) {
   console.error(`${failures} failure(s)`)

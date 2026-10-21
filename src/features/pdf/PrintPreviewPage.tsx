@@ -1,33 +1,54 @@
 import { useTournament } from '../../store/tournamentStore.ts'
+import { useScheduleModel } from '../../lib/hooks.ts'
 import { BracketSheet } from './BracketSheet.tsx'
-import { faDate } from '../../lib/formatFa.ts'
+import { PrintToolbar } from './PrintToolbar.tsx'
+import { toFaDigits } from '../../lib/formatFa.ts'
 
-export function PrintPreviewPage() {
+interface PrintPreviewPageProps {
+  /** 'all' or a groupId */
+  scope: string
+}
+
+export function PrintPreviewPage({ scope }: PrintPreviewPageProps) {
   const draws = useTournament((state) => state.draws)
-  const participants = useTournament((state) => state.participants)
-  const fileName = useTournament((state) => state.fileName)
+  const manualTables = useTournament((state) => state.manualTables)
+  const medalRainTables = useTournament((state) => state.medalRainTables)
+  const startExportJob = useTournament((state) => state.startExportJob)
+  const exportGroupPdf = useTournament((state) => state.exportGroupPdf)
+  const { participantsById, matchNumbers } = useScheduleModel()
 
-  const participantsById = new Map(participants.map((participant) => [participant.id, participant]))
-  const drawList = Object.values(draws)
-  const dateText = faDate(new Date())
+  const allDraws = Object.values(draws)
+  const drawList = scope === 'all' ? allDraws : allDraws.filter((draw) => draw.groupId === scope)
+  const meta = useTournament((state) => state.meta)
 
   return (
-    <div className="flex flex-col items-center gap-8 bg-ink-800 px-6 py-8">
-      <p className="rounded-lg bg-surface px-4 py-2 text-sm text-muted">
-        پیش‌نمایش برگه‌های چاپ — {drawList.length} برگه
-      </p>
-      {drawList.map((draw, index) => (
-        <div key={draw.groupId} className="shadow-2xl">
+    <div className="print-root flex flex-col items-center gap-8 bg-ink-800 px-6 py-8">
+      <PrintToolbar
+        summary={`پیش نمایش چاپ — ${toFaDigits(drawList.length)} برگه در قطع A4 افقی`}
+        onDownloadPdf={() =>
+          scope === 'all'
+            ? startExportJob({ kind: 'pdf', scope: 'all', groupId: null })
+            : exportGroupPdf(scope)
+        }
+      />
+
+      {drawList.map((draw, index) => {
+        // زمین و ساعت: جدول دستی یا جدول باران مدال
+        const info = manualTables[draw.groupId] ?? medalRainTables[draw.groupId]
+        // برگه خودش صفحه های A4 را رندر می کند (برگه های بلند چند صفحه می شوند)
+        return (
           <BracketSheet
+            key={draw.groupId}
             draw={draw}
             participantsById={participantsById}
+            meta={meta}
             index={index}
-            total={drawList.length}
-            dateText={dateText}
-            sourceName={fileName ?? '—'}
+            matchNumbers={matchNumbers}
+            matLabel={info?.matLabel || undefined}
+            attendTime={info?.attendTime || undefined}
           />
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
