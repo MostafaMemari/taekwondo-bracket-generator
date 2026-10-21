@@ -970,6 +970,95 @@ check('belts: store migration v15 keeps saved belts of tables and sessions',
   })(),
 )
 
+/* ————— تسک ۲۹ — جدول دو نفره، بج فینال و کلید پلاک قهرمان ————— */
+
+const heroSquad = makeParticipants({ 'حیدری': 1, 'کریمی': 1 })
+const heroGroup = groupByCategory(heroSquad)[0]
+const heroDraw = generateGroupDraw(
+  heroGroup,
+  Object.fromEntries(heroSquad.map((p) => [p.id, p])),
+  tournamentRules,
+)
+
+check('two-athlete sheet: hero print dims are larger than the standard card',
+  heroDraw.structure.roundCount === 1 &&
+    fitPrintDims(1, 1060).cardWidth === 360 &&
+    fitPrintDims(4, 1060).cardWidth <= 150 &&
+    fitPrintDims(1, 1060).nameFontSize === 15 &&
+    fitPrintDims(1, 1060).chipSize === 28 &&
+    fitPrintDims(4, 1060).nameFontSize === 11,
+)
+
+const heroLayout = computeBracketLayout(heroDraw.structure, fitPrintDims(1, 1060))
+const heroFinal = heroLayout.matches.find((match) => match.round === 1)
+
+check('two-athlete sheet: final box is compact and centred inside its own layout',
+  Boolean(heroFinal) &&
+    heroLayout.width < 500 &&
+    Math.abs(heroLayout.width / 2 - (heroFinal!.x + heroFinal!.width / 2)) < 0.5,
+)
+
+check('two-athlete sheet: final badge hangs below the box, clear of the coach line',
+  Boolean(heroFinal) && (() => {
+    const heroChip = fitPrintDims(1, 1060).chipSize
+    const boxBottom = heroFinal!.y + heroFinal!.height
+    const plateGap = heroChip + 16
+    return heroFinal!.chipY > boxBottom + 1 &&
+      heroFinal!.chipY - boxBottom < plateGap - heroChip / 2
+  })(),
+)
+
+check('two-athlete sheet: champion plate sits centred under the final',
+  Boolean(heroLayout.champion) &&
+    Math.abs(heroLayout.champion!.x + heroLayout.champion!.width / 2 - heroLayout.width / 2) < 0.5 &&
+    heroLayout.champion!.y > heroFinal!.y + heroFinal!.height,
+)
+
+const heroHidden = computeBracketLayout(heroDraw.structure, fitPrintDims(1, 1060), {
+  showChampion: false,
+})
+
+check('champion toggle off: layout drops the plate and shrinks',
+  heroHidden.champion === null &&
+    !heroHidden.connectors.some((points) =>
+      points.some((point) => heroLayout.champion
+        ? Math.abs(point.x - heroLayout.width / 2) < 0.5 &&
+          point.y > heroFinal!.y + heroFinal!.height
+        : false),
+    ) &&
+    heroHidden.height < heroLayout.height,
+)
+
+check('champion toggle: store migration keeps the saved switch and defaults old saves to on',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const off = migrate({ showChampion: false }) as { showChampion?: boolean }
+    const on = migrate({ showChampion: true }) as { showChampion?: boolean }
+    const junk = migrate({ showChampion: 'junk' }) as { showChampion?: boolean }
+    const empty = migrate({}) as { showChampion?: boolean }
+    return off.showChampion === false &&
+      on.showChampion === true &&
+      junk.showChampion === true &&
+      empty.showChampion === true
+  })(),
+)
+
 if (failures > 0) {
   console.error(`${failures} failure(s)`)
   process.exit(1)

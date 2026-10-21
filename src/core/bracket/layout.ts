@@ -147,10 +147,26 @@ function clamp(min: number, value: number, max: number): number {
  * ارتفاع کارت برای همه اندازه ها یکسان است (دو خط همیشگی) و فقط عرض کارت
  * با تعداد دورها جمع می شود. برگه های بلند (۳۲ و ۶۴ نفره) به جای ریز شدن،
  * با درزهای بین خانه ها روی چند صفحه A4 ادامه می یابند.
+ *
+ * جدول دو نفره استثنا است: فقط «فینال» روی برگه است — یک کارت قهرمانی درشت
+ * که وسط صفحه می نشیند، نه کارت کوچک گوشه راست؛ نام و مربی هم درشت تر خوانا
+ * می شوند.
  */
 export function fitPrintDims(roundCount: number, bodyWidth: number): LayoutDims {
   const base = printLayoutDims
-  if (roundCount <= 1) return base
+  if (roundCount <= 1) {
+    return {
+      ...base,
+      cardWidth: 360,
+      cardHeight: 56,
+      rowHeight: 86,
+      boxPad: 6,
+      innerGap: 8,
+      chipSize: 28,
+      nameFontSize: 15,
+      subFontSize: 12,
+    }
+  }
 
   const halfSpan = bodyWidth / 2 - base.padX
   // عرض کارت از گام ستون ها در می آید و ۱۲ پیکسل نفس بین ستون ها می ماند
@@ -246,10 +262,17 @@ function toPlan(node: BracketStructureNode): PlanNode {
  *  - a virtual root (band pages) draws no box and no badge — the two wing
  *    boxes just converge to its point, where the «ادامه» note sits.
  */
+/** گزینه های چیدمان — فعلا فقط کلید نمایش صفحه قهرمان (از تنظیمات) */
+export interface PlanLayoutOptions {
+  /** پلاک «قهرمان» زیر فینال — خاموش شدنش جای خالی نمی سازد و رده بندی بالا می آید */
+  showChampion?: boolean
+}
+
 export function computePlanLayout(
   plan: PlanNode,
   dims: LayoutDims,
   bronze?: BronzeMatchInfo | null,
+  options?: PlanLayoutOptions,
 ): BracketLayout {
   if (plan.kind !== 'match') {
     return {
@@ -389,9 +412,15 @@ export function computePlanLayout(
       topLoser: null,
       bottomLoser: null,
       // badge anchored to the box itself: the edge facing the next round
-      // (the final, dir 0, wears its badge on the bottom edge)
+      // (the final, dir 0, wears its badge on the bottom edge). The final that
+      // carries REAL name rows (the 2-athlete draw) hangs its badge just below
+      // the box, centred in the gap to the champion plate — on the edge it
+      // would sit right on the bottom athlete's coach line.
       chipX: node.dir === 0 ? node.cx : node.cx - node.dir * (dims.cardWidth / 2),
-      chipY: node.dir === 0 ? node.cy + height / 2 : node.cy,
+      chipY:
+        node.dir === 0
+          ? node.cy + height / 2 + (containsLeaves ? dims.chipSize / 2 + 8 : 0)
+          : node.cy,
     }
     if (!source.virtual) matches.push(match)
 
@@ -440,7 +469,7 @@ export function computePlanLayout(
   // «قهرمان» plate under the final; the final's badge sits on its bottom edge
   let champion: LayoutChampion | null = null
   const finalMatch = matches.find((match) => match.round === rootRound)
-  if (finalMatch && !virtualRoot) {
+  if (finalMatch && !virtualRoot && options?.showChampion !== false) {
     const plateWidth = Math.max(130, Math.min(dims.cardWidth, 180))
     const plateHeight = Math.max(40, Math.round(dims.cardHeight * 0.72))
     const plateGap = dims.chipSize + 16
@@ -686,6 +715,7 @@ export function buildStagedPrintPlans(structure: BracketStructure): PrintPagePla
 export function computeBracketLayout(
   structure: BracketStructure,
   dims: LayoutDims,
+  options?: PlanLayoutOptions,
 ): BracketLayout {
   if (structure.roundCount === 0) {
     return {
@@ -698,5 +728,5 @@ export function computeBracketLayout(
       continuePoint: null,
     }
   }
-  return computePlanLayout(toPlan(structure.root), dims, structure.bronzeMatch ?? null)
+  return computePlanLayout(toPlan(structure.root), dims, structure.bronzeMatch ?? null, options)
 }

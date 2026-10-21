@@ -101,7 +101,13 @@ export function BracketCanvas({
     return byId;
   }, [participants]);
 
-  const layout = useMemo(() => computeBracketLayout(draw.structure, dims), [draw.structure]);
+  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
+  const showChampion = useTournament((state) => state.showChampion);
+
+  const layout = useMemo(
+    () => computeBracketLayout(draw.structure, dims, { showChampion }),
+    [draw.structure, showChampion],
+  );
 
   function slotIdFrom(event: DragStartEvent | DragEndEvent): string | undefined {
     const data = event.active.data.current as { slotId?: string } | undefined;

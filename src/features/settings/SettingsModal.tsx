@@ -66,15 +66,17 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const tableThemeId = useTournament((state) => state.tableThemeId)
   const matchChipStyle = useTournament((state) => state.matchChipStyle)
   const matchChipSize = useTournament((state) => state.matchChipSize)
+  const showChampion = useTournament((state) => state.showChampion)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
       initialChipSize={matchChipSize}
+      initialShowChampion={showChampion}
       onClose={onClose}
     />
   )
@@ -85,18 +87,21 @@ function SettingsForm({
   initialThemeId,
   initialChipStyle,
   initialChipSize,
+  initialShowChampion,
   onClose,
 }: {
   initial: TournamentMeta
   initialThemeId: ReturnType<typeof useTournament.getState>['tableThemeId']
   initialChipStyle: ReturnType<typeof useTournament.getState>['matchChipStyle']
   initialChipSize: ReturnType<typeof useTournament.getState>['matchChipSize']
+  initialShowChampion: boolean
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
   const setTableThemeId = useTournament((state) => state.setTableThemeId)
   const setMatchChipStyle = useTournament((state) => state.setMatchChipStyle)
   const setMatchChipSize = useTournament((state) => state.setMatchChipSize)
+  const setShowChampion = useTournament((state) => state.setShowChampion)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
@@ -104,6 +109,7 @@ function SettingsForm({
   const [tableThemeId, setThemeId] = useState(initialThemeId)
   const [chipStyle, setChipStyle] = useState<MatchChipStyle>(initialChipStyle)
   const [chipSize, setChipSize] = useState<MatchChipSize>(normalizeMatchChipSize(initialChipSize))
+  const [championVisible, setChampionVisible] = useState(initialShowChampion)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -130,6 +136,7 @@ function SettingsForm({
     setTableThemeId(tableThemeId)
     setMatchChipStyle(chipStyle)
     setMatchChipSize(chipSize)
+    setShowChampion(championVisible)
     onClose()
   }
 
@@ -402,6 +409,62 @@ function SettingsForm({
                 بازگشت به پیش فرض
               </button>
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              نمایش پلاک قهرمان
+              <span className="ms-2 text-xs font-normal text-muted">پلاک «قهرمان» زیر فینال — بوم قرعه و همه خروجی ها</span>
+            </label>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3">
+              <div className="flex items-center gap-3">
+                {/* ماکت کوچک — روشن: پلاک طلایی؛ خاموش: جای خالی نقطه چین */}
+                {championVisible ? (
+                  <span
+                    aria-hidden
+                    className="flex h-8 w-16 shrink-0 items-center justify-center rounded-lg font-display text-[11px] tracking-wider text-white"
+                    style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}
+                  >
+                    قهرمان
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden
+                    className="flex h-8 w-16 shrink-0 items-center justify-center rounded-lg border border-dashed border-line-strong text-[10px] text-muted"
+                  >
+                    بدون پلاک
+                  </span>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-ink-900">پلاک قهرمان زیر فینال</p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted">
+                    با خاموش کردن، پلاک روی بوم قرعه، برگه چاپ و خروجی عکس و PDF نمی آید
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className={`text-xs font-medium ${championVisible ? 'text-mat-700' : 'text-muted'}`}>
+                  {championVisible ? 'روشن' : 'خاموش'}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={championVisible}
+                  aria-label="نمایش پلاک قهرمان"
+                  onClick={() => setChampionVisible((value) => !value)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                    championVisible ? 'bg-mat-600' : 'bg-line-strong'
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${
+                      championVisible ? 'start-0.5' : 'start-[22px]'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
 
           {error && (

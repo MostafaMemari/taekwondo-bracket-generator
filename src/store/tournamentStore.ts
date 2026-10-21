@@ -243,6 +243,13 @@ interface TournamentState {
    */
   matchChipSize: MatchChipSize
   setMatchChipSize: (size: MatchChipSize) => void
+  /**
+   * نمایش پلاک «قهرمان» زیر فینال — بوم قرعه، برگه چاپ و خروجی عکس/PDF؛
+   * کلید فعال/غیرفعال از تنظیمات. انتخاب شخصی است و با ورود فهرست جدید عوض
+   * نمی شود.
+   */
+  showChampion: boolean
+  setShowChampion: (value: boolean) => void
 }
 
 const historyLimit = 40
@@ -286,6 +293,9 @@ export const useTournament = create<TournamentState>()(
       // اندازه شماره هم انتخاب شخصی است
       matchChipSize: defaultMatchChipSize,
       setMatchChipSize: (size) => set({ matchChipSize: normalizeMatchChipSize(size) }),
+      // پلاک قهرمان به طور پیش فرض روشن است
+      showChampion: true,
+      setShowChampion: (value) => set({ showChampion: value }),
 
       importRoster: (fileName, roster) =>
         set({
@@ -791,7 +801,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 15,
+      version: 16,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -810,6 +820,7 @@ export const useTournament = create<TournamentState>()(
         //      v14: اندازه بج شماره — ذخیره های قدیمی معمولی
         //      v15: کمربند بازه زمانی + کمربند جدول دیگر trim نمی شود
         //           (باگ «نمی گذارد فاصله بدهم»)
+        //      v16: کلید نمایش پلاک قهرمان — ذخیره های قدیمی روشن شروع می کنند
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -857,6 +868,7 @@ export const useTournament = create<TournamentState>()(
           tableThemeId: isTableThemeId(state.tableThemeId) ? state.tableThemeId : 'classic',
           matchChipStyle: normalizeMatchChipStyle(state.matchChipStyle),
           matchChipSize: normalizeMatchChipSize(state.matchChipSize),
+          showChampion: state.showChampion !== false,
         }
       },
       partialize: (state) => ({
@@ -877,6 +889,7 @@ export const useTournament = create<TournamentState>()(
         tableThemeId: state.tableThemeId,
         matchChipStyle: state.matchChipStyle,
         matchChipSize: state.matchChipSize,
+        showChampion: state.showChampion,
       }),
     },
   ),

@@ -126,6 +126,8 @@ export function BracketSheet({
   // اندازه بج شماره — ضریب روی اندازه پایه چیدمان
   const matchChipSize = useTournament((state) => state.matchChipSize);
   const chipScale = matchChipFactor(matchChipSize);
+  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
+  const showChampion = useTournament((state) => state.showChampion);
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
   const withResults = variant === "print" && draw.structure.roundCount > 0;
   // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر
@@ -146,8 +148,8 @@ export function BracketSheet({
 
   const wholeDims: LayoutDims = fitPrintDims(draw.structure.roundCount, bodyWidth);
   const wholeLayout = useMemo(
-    () => computeBracketLayout(draw.structure, wholeDims),
-    [draw.structure, wholeDims],
+    () => computeBracketLayout(draw.structure, wholeDims, { showChampion }),
+    [draw.structure, wholeDims, showChampion],
   );
 
   function renderLeaf(
@@ -400,7 +402,9 @@ export function BracketSheet({
           dir="ltr"
           style={{
             position: "absolute",
-            left: (bodyWidth - layout.width) / 2,
+            // وقتی چیدمان از بدنه کوتاه تر است (جدول دو نفره) همان جا می ماند —
+            // جعبه بیرونی خودش وسط است؛ آفست منفی فقط برای چیدمان پهن تر از بدنه
+            left: Math.min(0, (bodyWidth - layout.width) / 2),
             top: 0,
             width: layout.width,
             height: layout.height,
@@ -661,7 +665,7 @@ export function BracketSheet({
       <div data-pdf-group={index} data-page-count={plans.length}>
       {plans.map((plan, page) => {
         const dims = fitPrintDims(plan.columns, bodyWidth);
-        const layout = computePlanLayout(plan.plan, dims);
+        const layout = computePlanLayout(plan.plan, dims, undefined, { showChampion });
         const isFirst = page === 0;
         const isLast = page === plans.length - 1;
         const showResults = withResults && isLast;
