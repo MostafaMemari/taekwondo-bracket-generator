@@ -1,18 +1,9 @@
 import { useCallback, useState } from 'react'
 import { toFaDigits } from '../../lib/formatFa.ts'
 import { useTournament } from '../../store/tournamentStore.ts'
-import { FINAL_GOLD } from './sideColors.ts'
 
 /** بیشترین طول شماره دستی مسابقه — ورودی و store هر دو همین سقف را می پذیرند */
 export const MATCH_NUMBER_MAX = 4
-
-/** رنگ سرمه بدنه و طلایی فینال + هاله فوکوس هر کدام — برای هر سه چipt شماره */
-export function matchChipTone(isFinal: boolean): { accent: string; halo: string } {
-  return {
-    accent: isFinal ? FINAL_GOLD : '#1e3a5f',
-    halo: isFinal ? 'rgba(217, 119, 6, 0.4)' : 'rgba(33, 88, 215, 0.35)',
-  }
-}
 
 /**
  * راهنمای دایره شماره — برای چipt های قابل ویرایش: شماره دستی را نام می برد

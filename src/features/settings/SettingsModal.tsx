@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ImageUp, Trash2, X } from 'lucide-react'
+import { Check, ImageUp, Trash2, X } from 'lucide-react'
 import { useTournament, type TournamentMeta } from '../../store/tournamentStore.ts'
 import { Button } from '../../components/Button.tsx'
 import {
@@ -7,6 +7,24 @@ import {
   SHEET_TITLE_DEFAULT_FORMAT,
   SHEET_TITLE_VARIABLES,
 } from '../../lib/formatFa.ts'
+import {
+  classicTheme,
+  tableThemes,
+  type TableTheme,
+} from '../../lib/tableThemes.ts'
+import {
+  defaultMatchChipSize,
+  defaultMatchChipStyle,
+  matchChipModes,
+  matchChipPresetColors,
+  matchChipRadius,
+  matchChipSizeOptions,
+  normalizeMatchChipSize,
+  readableChipText,
+  type MatchChipMode,
+  type MatchChipSize,
+  type MatchChipStyle,
+} from '../../lib/matchChipStyles.ts'
 
 interface SettingsModalProps {
   open: boolean
@@ -45,12 +63,18 @@ async function fileToScaledDataUrl(file: File): Promise<string> {
 
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const meta = useTournament((state) => state.meta)
+  const tableThemeId = useTournament((state) => state.tableThemeId)
+  const matchChipStyle = useTournament((state) => state.matchChipStyle)
+  const matchChipSize = useTournament((state) => state.matchChipSize)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}`}
       initial={meta}
+      initialThemeId={tableThemeId}
+      initialChipStyle={matchChipStyle}
+      initialChipSize={matchChipSize}
       onClose={onClose}
     />
   )
@@ -58,16 +82,28 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 
 function SettingsForm({
   initial,
+  initialThemeId,
+  initialChipStyle,
+  initialChipSize,
   onClose,
 }: {
   initial: TournamentMeta
+  initialThemeId: ReturnType<typeof useTournament.getState>['tableThemeId']
+  initialChipStyle: ReturnType<typeof useTournament.getState>['matchChipStyle']
+  initialChipSize: ReturnType<typeof useTournament.getState>['matchChipSize']
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
+  const setTableThemeId = useTournament((state) => state.setTableThemeId)
+  const setMatchChipStyle = useTournament((state) => state.setMatchChipStyle)
+  const setMatchChipSize = useTournament((state) => state.setMatchChipSize)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
   const [logo, setLogo] = useState<string | null>(initial.logoDataUrl)
+  const [tableThemeId, setThemeId] = useState(initialThemeId)
+  const [chipStyle, setChipStyle] = useState<MatchChipStyle>(initialChipStyle)
+  const [chipSize, setChipSize] = useState<MatchChipSize>(normalizeMatchChipSize(initialChipSize))
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -91,6 +127,9 @@ function SettingsForm({
       sheetTitleFormat: sheetTitleFormat.trim(),
       logoDataUrl: logo,
     })
+    setTableThemeId(tableThemeId)
+    setMatchChipStyle(chipStyle)
+    setMatchChipSize(chipSize)
     onClose()
   }
 
@@ -117,7 +156,7 @@ function SettingsForm({
           </button>
         </header>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="max-h-[85vh] space-y-5 overflow-y-auto px-6 py-5">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               عنوان مسابقات
@@ -230,6 +269,141 @@ function SettingsForm({
             </div>
           </div>
 
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              تم جدول ها
+              <span className="ms-2 text-xs font-normal text-muted">فقط ظاهر برگه ها عوض می شود — نه داده ها و نه چیدمان</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2.5">
+              {tableThemes.map((theme) => (
+                <TableThemeCard
+                  key={theme.id}
+                  theme={theme}
+                  selected={theme.id === tableThemeId}
+                  onSelect={() => setThemeId(theme.id)}
+                />
+              ))}
+            </div>
+            <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+              تم روی همه جدول ها — پیش نمایش حالت جدولی، خروجی عکس و PDF و چاپ — یک جا اعمال می شود؛
+              رنگ گوشه آبی و قرمز در همه تم ها حفظ می شود تا داوری گمراه نشود.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              ظاهر شماره مسابقه
+              <span className="ms-2 text-xs font-normal text-muted">فقط شکل و رنگ بج شماره ها عوض می شود</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2.5">
+              {matchChipModes.map((mode) => (
+                <MatchChipModeCard
+                  key={mode.id}
+                  mode={mode}
+                  color={chipStyle.color}
+                  selected={chipStyle.shape === mode.shape && chipStyle.fill === mode.fill}
+                  onSelect={() =>
+                    setChipStyle((current) => ({ ...current, shape: mode.shape, fill: mode.fill }))
+                  }
+                />
+              ))}
+            </div>
+
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-medium text-ink-800">اندازه بج</p>
+              <div className="grid grid-cols-3 gap-2.5">
+                {matchChipSizeOptions.map((option) => (
+                  <MatchChipSizeCard
+                    key={option.id}
+                    option={option}
+                    shape={chipStyle.shape}
+                    fill={chipStyle.fill}
+                    color={chipStyle.color}
+                    selected={chipSize === option.id}
+                    onSelect={() => setChipSize(option.id)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <p className="mb-1.5 text-xs font-medium text-ink-800">رنگ بج</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChipStyle((current) => ({ ...current, color: null }))}
+                  aria-pressed={chipStyle.color === null}
+                  title="رنگ از تم جدول می آید — فینال طلایی می ماند"
+                  className={`flex items-center gap-1.5 rounded-full border py-1 pe-3 ps-1 text-xs font-medium transition-colors ${
+                    chipStyle.color === null
+                      ? 'border-mat-600 bg-mat-50 text-ink-900 ring-2 ring-mat-600/25'
+                      : 'border-line text-muted hover:border-line-strong'
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className="size-5 rounded-full"
+                    style={{ background: `linear-gradient(135deg, ${classicTheme.matchAccent} 55%, ${classicTheme.finalAccent} 55%)` }}
+                  />
+                  همراه تم
+                </button>
+                {matchChipPresetColors.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setChipStyle((current) => ({ ...current, color: preset.value }))}
+                    aria-pressed={chipStyle.color === preset.value}
+                    title={preset.name}
+                    aria-label={`رنگ ${preset.name}`}
+                    className={`size-6 rounded-full border border-black/10 transition-transform ${
+                      chipStyle.color === preset.value
+                        ? 'scale-110 ring-2 ring-mat-600/60 ring-offset-1'
+                        : 'hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: preset.value }}
+                  />
+                ))}
+                <label
+                  title="رنگ دلخواه"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line py-1 pe-3 ps-1 text-xs font-medium text-muted transition-colors hover:border-line-strong"
+                >
+                  <span
+                    aria-hidden
+                    className="size-5 rounded-full border border-black/10"
+                    style={{
+                      background:
+                        'conic-gradient(#ef4444, #f59e0b, #84cc16, #14b8a6, #3b82f6, #a855f7, #ef4444)',
+                    }}
+                  />
+                  دلخواه
+                  <input
+                    type="color"
+                    value={chipStyle.color ?? classicTheme.matchAccent}
+                    onChange={(event) =>
+                      setChipStyle((current) => ({ ...current, color: event.target.value }))
+                    }
+                    className="size-0 w-0 p-0 opacity-0"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+              «همراه تم» رنگ بج را از تم جدول می گیرد و فینال طلایی خودش را نگه می دارد؛ رنگ دلخواه روی همه
+              بج ها می نشیند. شکل، اندازه و رنگ فقط روی بج شماره ها اثر دارد و هیچ چیز دیگری عوض نمی شود.
+              <button
+                type="button"
+                onClick={() => {
+                  setChipStyle(defaultMatchChipStyle)
+                  setChipSize(defaultMatchChipSize)
+                }}
+                className="ms-1 font-medium text-mat-700 underline decoration-dotted underline-offset-4 hover:text-mat-600"
+              >
+                بازگشت به پیش فرض
+              </button>
+            </p>
+          </div>
+
           {error && (
             <p className="rounded-lg bg-hogu-100 px-3 py-2 text-sm text-hogu-700">{error}</p>
           )}
@@ -243,5 +417,203 @@ function SettingsForm({
         </footer>
       </div>
     </div>
+  )
+}
+
+/**
+ * کارت انتخاب تم — یک ماکت کوچک از سربرگ و دو ردیف گوشه با خود رنگ های تم؛
+ * انتخاب با ذخیره اعمال می شود و «انصراف» برمی گرداند.
+ */
+function TableThemeCard({
+  theme,
+  selected,
+  onSelect,
+}: {
+  theme: TableTheme
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div
+        className="overflow-hidden rounded-lg border border-line"
+        style={{ backgroundColor: theme.sheetBg }}
+      >
+        {/* سربرگ ماکت — نوار عنوان + بج زمین + خانه آمار */}
+        <div
+          className="flex items-center justify-between gap-1 px-1.5 py-1"
+          style={{ borderBottom: `1.5px solid ${theme.headerRule}` }}
+        >
+          <span
+            aria-hidden
+            className="h-1 w-1/2 rounded-full"
+            style={{ backgroundColor: theme.titleText, opacity: 0.85 }}
+          />
+          <span
+            aria-hidden
+            className="h-2.5 shrink-0 rounded-sm px-1"
+            style={{ backgroundColor: theme.matBadgeBg, width: 14 }}
+          />
+          <span
+            aria-hidden
+            className="h-2.5 w-3.5 shrink-0 rounded-sm"
+            style={{ border: `1px solid ${theme.statBorder}` }}
+          />
+        </div>
+        {/* دو گوشه ماکت — آبی بالا، قرمز پایین؛ رنگ گوشه ها در همه تم ها زنده می ماند */}
+        <div className="space-y-1 p-1.5">
+          {(['chong', 'hong'] as const).map((side) => (
+            <div
+              key={side}
+              className="flex h-3 overflow-hidden rounded"
+              style={{ backgroundColor: theme.sides[side].bgSoft }}
+            >
+              <span aria-hidden className="w-[3px] shrink-0" style={{ backgroundColor: theme.sides[side].accent }} />
+              <span
+                aria-hidden
+                className="my-auto h-[3px] w-2/3 rounded-full"
+                style={{ backgroundColor: theme.nameText, opacity: 0.7, marginInline: 4 }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{theme.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+      <p className="mt-0.5 text-[10px] leading-4 text-muted">{theme.hint}</p>
+    </button>
+  )
+}
+
+/**
+ * کارت انتخاب حالت شماره مسابقه — ماکت دو بج (پر با عدد و خالی نقطه چین) با
+ * همان شکل و رنگ انتخابی؛ انتخاب با ذخیره اعمال می شود و «انصراف» برمی گرداند.
+ */
+function MatchChipModeCard({
+  mode,
+  color,
+  selected,
+  onSelect,
+}: {
+  mode: MatchChipMode
+  /** رنگ staging شده — null یعنی همراه تم؛ ماکت با رنگ کلاسیک دیده می شود */
+  color: string | null
+  selected: boolean
+  onSelect: () => void
+}) {
+  const accent = color ?? classicTheme.matchAccent
+  const chipSize = 22
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div className="flex items-center justify-center gap-2 rounded-lg border border-line bg-white px-2 py-2">
+        <span
+          aria-hidden
+          className="flex items-center justify-center text-[11px] font-bold"
+          style={{
+            width: chipSize,
+            height: chipSize,
+            borderRadius: matchChipRadius(mode.shape, chipSize),
+            border: `2px solid ${accent}`,
+            ...(mode.fill === 'solid'
+              ? { backgroundColor: accent, color: readableChipText(accent) }
+              : { backgroundColor: '#ffffff', color: accent }),
+          }}
+        >
+          ۳
+        </span>
+        <span
+          aria-hidden
+          className="flex items-center justify-center border-2 border-dashed border-slate-300"
+          style={{
+            width: chipSize - 4,
+            height: chipSize - 4,
+            borderRadius: matchChipRadius(mode.shape, chipSize - 4),
+          }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{mode.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+    </button>
+  )
+}
+
+/**
+ * کارت انتخاب اندازه شماره مسابقه — ماکت بج با خود اندازه انتخابی و همان شکل
+ * و رنگ فعلی، تا تفاوت سه اندازه یک جا دیده شود؛ با «ذخیره» اعمال می شود.
+ */
+function MatchChipSizeCard({
+  option,
+  shape,
+  fill,
+  color,
+  selected,
+  onSelect,
+}: {
+  option: (typeof matchChipSizeOptions)[number]
+  shape: MatchChipStyle['shape']
+  fill: MatchChipStyle['fill']
+  color: string | null
+  selected: boolean
+  onSelect: () => void
+}) {
+  const accent = color ?? classicTheme.matchAccent
+  // ماکت با خود ضریب اندازه — پایه ۲۲ پیکسل مثل بج واقعی برگه
+  const size = Math.round(22 * option.factor)
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div className="flex h-[46px] items-center justify-center rounded-lg border border-line bg-white px-2">
+        <span
+          aria-hidden
+          className="flex items-center justify-center font-bold"
+          style={{
+            width: size,
+            height: size,
+            borderRadius: matchChipRadius(shape, size),
+            border: `2px solid ${accent}`,
+            fontSize: Math.round(size * 0.48),
+            ...(fill === 'solid'
+              ? { backgroundColor: accent, color: readableChipText(accent) }
+              : { backgroundColor: '#ffffff', color: accent }),
+          }}
+        >
+          ۳
+        </span>
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{option.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+    </button>
   )
 }

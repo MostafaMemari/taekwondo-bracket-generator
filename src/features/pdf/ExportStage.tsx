@@ -6,10 +6,23 @@ import { toFaDigits } from '../../lib/formatFa.ts'
 import { effectiveMatchNumbers } from '../../core/schedule/schedule.ts'
 import { BracketSheet } from './BracketSheet.tsx'
 import { exportDrawsToPdf } from './exportDrawsToPdf.ts'
-import { exportImageFromElement, imageBaseName } from './exportGroupImage.ts'
+import { exportSheetsAsA4Images } from './exportGroupImage.ts'
 import { renderWeightTitle } from '../../lib/formatFa.ts'
+import { tableThemeById } from '../../lib/tableThemes.ts'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
+
+/** نام فایل خروجی یک وزن — فقط از قالب عنوان؛ عنوان مسابقات فقط با {عنوان} می آید */
+function weightFileName(
+  meta: ReturnType<typeof useTournament.getState>['meta'],
+  draw: GroupDraw,
+): string {
+  return renderWeightTitle(meta.sheetTitleFormat, {
+    ageCategory: draw.group.ageCategory,
+    weightCategory: draw.group.weightCategory,
+    tournamentTitle: meta.title,
+  })
+}
 
 /**
  * رانه واحد همه کارهای خروجی از صفحه های اصلی (گروه ها، قرعه، پیش نمایش چاپ):
@@ -21,6 +34,7 @@ export function ExportStage() {
   const exportJob = useTournament((state) => state.exportJob)
   const draws = useTournament((state) => state.draws)
   const selectedGroupId = useTournament((state) => state.selectedGroupId)
+  const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
 
   if (!exportJob) return null
 
@@ -39,12 +53,21 @@ export function ExportStage() {
       key={targetDraws.map((draw) => draw.groupId).join('|')}
       draws={targetDraws}
       kind={exportJob.kind}
+      tableBeltLabels={tableBeltLabels}
     />,
     document.body,
   )
 }
 
-function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'image' }) {
+function ExportCapture({
+  draws,
+  kind,
+  tableBeltLabels,
+}: {
+  draws: GroupDraw[]
+  kind: 'pdf' | 'image'
+  tableBeltLabels: Record<string, string>
+}) {
   const finishExportJob = useTournament((state) => state.finishExportJob)
   const participants = useTournament((state) => state.participants)
   const drawsRecord = useTournament((state) => state.draws)
@@ -53,6 +76,9 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
   const manualTables = useTournament((state) => state.manualTables)
   const medalRainTables = useTournament((state) => state.medalRainTables)
   const meta = useTournament((state) => state.meta)
+  // پس زمینه بیرون برگه در خروجی عکس/PDF — همرنگ تم جدول
+  const tableThemeId = useTournament((state) => state.tableThemeId)
+  const backdrop = tableThemeById(tableThemeId).canvasBg
   const [hasError, setHasError] = useState(false)
 
   const participantsById = useMemo(
@@ -77,24 +103,18 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
       try {
         await document.fonts.ready
         if (kind === 'pdf') {
-          await exportDrawsToPdf(draws.length, meta.title)
+          // نام فایل: یک جدول = قالب عنوان همان وزن؛ همه جدول ها = عنوان مسابقات
+          const fileBase =
+            draws.length === 1
+              ? weightFileName(meta, draws[0])
+              : meta.title.trim() || 'قرعه کشی مسابقات تکواندو'
+          await exportDrawsToPdf(draws.length, fileBase, backdrop)
         } else {
-          const base = imageBaseName(meta.title)
-          for (let index = 0; index < draws.length; index += 1) {
-            const element = document.getElementById(`pdf-sheet-${index}`)
-            if (!element) throw new Error(`image sheet ${index} not found`)
-            const draw = draws[index]
-            await exportImageFromElement(
-              element,
-              `${base} — ${renderWeightTitle(meta.sheetTitleFormat, {
-                ageCategory: draw.group.ageCategory,
-                weightCategory: draw.group.weightCategory,
-                tournamentTitle: meta.title,
-              })}`,
-            )
-            // مرورگر دانلودهای پشت سرهم را محدود می کند
-            await new Promise((resolve) => window.setTimeout(resolve, 350))
-          }
+          await exportSheetsAsA4Images(
+            draws.map((_, index) => index),
+            (index) => weightFileName(meta, draws[index]),
+            backdrop,
+          )
         }
         if (!cancelled) finishExportJob()
       } catch {
@@ -106,13 +126,13 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
     return () => {
       cancelled = true
     }
-  }, [draws, finishExportJob, kind, meta])
+  }, [draws, finishExportJob, kind, meta, backdrop])
 
   return (
     <>
       <div aria-hidden style={OFFSCREEN_MOUNT_STYLE}>
         {draws.map((draw, index) => {
-          // زمین و ساعت: جدول دستی یا جدول باران مدال
+          // زمین و ساعت: جدول دستی یا جدول باران مدال؛ کمربند: برای همه جدول ها
           const info = manualTables[draw.groupId] ?? medalRainTables[draw.groupId]
           return (
             <BracketSheet
@@ -125,6 +145,7 @@ function ExportCapture({ draws, kind }: { draws: GroupDraw[]; kind: 'pdf' | 'ima
               matchNumbers={matchNumbers}
               matLabel={info?.matLabel || undefined}
               attendTime={info?.attendTime || undefined}
+              beltLabel={tableBeltLabels[draw.groupId] || undefined}
             />
           )
         })}

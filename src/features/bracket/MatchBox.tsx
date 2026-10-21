@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import type { LayoutMatch, LayoutDims, PlanLeaf, SlotSide } from '../../core/bracket/layout.ts'
 import { BRONZE_HEADER_HEIGHT } from '../../core/bracket/layout.ts'
-import { FINAL_GOLD } from './sideColors.ts'
 import { LoserRow, PositionRow } from './SlotRows.tsx'
+import { useTableTheme } from '../../lib/tableThemeContext.ts'
 
 interface MatchBoxProps {
   match: LayoutMatch
@@ -12,24 +12,24 @@ interface MatchBoxProps {
   renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
 }
 
-const LINE = '#cbd5e1'
-const REST = '#cbd5e1'
-
 /**
  * Shared match box view for the interactive canvas and the print sheet:
  * two corner rows — blue on top, red at the bottom — with no written labels.
  * The final's undecided corners show stronger tints. Walkover boxes (a corner
  * is «استراحت») keep a dashed border and carry no number badge. Match numbers
  * are solid badges anchored to the box edges by the layout, not drawn here.
+ * خط و پس زمینه از تم جدول می آید — برگه تم انتخابی، بوم قرعه رنگ کلاسیک.
  */
 export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps) {
+  const theme = useTableTheme()
+
   // مسابقه رده بندی باران مدال — سرتیتر «رده بندی» و دو ردیف «بازنده مسابقه N»
   if (match.bronze) {
     return (
       <div
         dir="ltr"
-        className="relative h-full w-full rounded-[8px] bg-white"
-        style={{ border: '1.5px solid #94a3b8' }}
+        className="relative h-full w-full rounded-[8px]"
+        style={{ border: `1.5px solid ${theme.bronzeBorder}`, backgroundColor: theme.boxBg }}
       >
         <div
           dir="rtl"
@@ -43,7 +43,7 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
         >
           <span
             className="font-bold"
-            style={{ fontSize: 10, color: '#5b6b82', letterSpacing: 1.5 }}
+            style={{ fontSize: 10, color: theme.bronzeLabel, letterSpacing: 1.5 }}
           >
             رده بندی
           </span>
@@ -73,10 +73,10 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
 
   const isFinal = match.round === roundCount
   const border = isFinal
-    ? `2px solid ${FINAL_GOLD}`
+    ? `2px solid ${theme.finalAccent}`
     : match.contested
-      ? `1.5px solid ${LINE}`
-      : `1.5px dashed ${REST}`
+      ? `1.5px solid ${theme.boxBorder}`
+      : `1.5px dashed ${theme.boxRestBorder}`
 
   const topLeaf: PlanLeaf | null = match.topSlotId
     ? { kind: 'slot', slotId: match.topSlotId }
@@ -97,8 +97,8 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
   return (
     <div
       dir="ltr"
-      className="relative h-full w-full rounded-[8px] bg-white"
-      style={{ border }}
+      className="relative h-full w-full rounded-[8px]"
+      style={{ border, backgroundColor: theme.boxBg }}
     >
       {rows.map((row) => (
         <div

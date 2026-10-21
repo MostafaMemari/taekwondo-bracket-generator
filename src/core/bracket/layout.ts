@@ -86,6 +86,19 @@ export interface BracketLayout {
 /** ارتفاع نوار سرتیتر «رده بندی» داخل جعبه مسابقه رده بندی */
 export const BRONZE_HEADER_HEIGHT = 18
 
+/**
+ * سمت نوار رنگی گوشه برای یک جعبه مسابقه — برگه آینه ای است: جعبه های نیمه
+ * چپ نوار را روی لبه چپ می گیرند و نیمه راست روی لبه راست تا نوار همیشه سمت
+ * بیرونی (ورود مبارز از لبه برگه) بنشیند. جعبه های وسط (فینال) راست می گیرند.
+ */
+export function barSideForMatch(
+  match: { x: number; width: number },
+  layoutWidth: number,
+): 'left' | 'right' {
+  const cx = match.x + match.width / 2
+  return cx < layoutWidth / 2 - 0.5 ? 'left' : 'right'
+}
+
 export const interactiveLayoutDims: LayoutDims = {
   cardWidth: 200,
   cardHeight: 64,

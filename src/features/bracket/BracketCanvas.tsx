@@ -13,21 +13,27 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import {
+  barSideForMatch,
   computeBracketLayout,
   interactiveLayoutDims,
   type SlotSide,
 } from "../../core/bracket/layout.ts";
 import type { GroupDraw, Participant } from "../../core/types.ts";
-import type { PlanLeaf } from "../../core/bracket/layout.ts";
+import type { LayoutMatch, PlanLeaf } from "../../core/bracket/layout.ts";
 import { useTournament } from "../../store/tournamentStore.ts";
 import { toFaDigits } from "../../lib/formatFa.ts";
+import {
+  matchChipFactor,
+  matchChipPalette,
+  matchChipRadius,
+} from "../../lib/matchChipStyles.ts";
+import { classicTheme } from "../../lib/tableThemes.ts";
 import { roundLabel } from "../../lib/roundLabels.ts";
 import { FitText } from "../../components/FitText.tsx";
 import { MatchBox } from "./MatchBox.tsx";
 import { SlotCard } from "./SlotCard.tsx";
 import { PositionRow, WinnerRow } from "./SlotRows.tsx";
 import {
-  matchChipTone,
   matchNumberTooltip,
   useMatchNumberField,
 } from "./matchNumberField.ts";
@@ -120,7 +126,7 @@ export function BracketCanvas({
     setEditingSlotId(slotId);
   }
 
-  function renderSlot(slotId: string, side: SlotSide) {
+  function renderSlot(slotId: string, side: SlotSide, barSide?: "left" | "right") {
     const occupant = draw.assignments[slotId];
     const participant =
       occupant.kind === "participant" ? participantsById.get(occupant.participantId) : undefined;
@@ -133,6 +139,7 @@ export function BracketCanvas({
         nameFontSize={dims.nameFontSize}
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
+        barSide={barSide}
         manualEdit={
           isManual && participant
             ? {
@@ -151,18 +158,23 @@ export function BracketCanvas({
   }
 
   /** برگ های بوم همیشه اسلات واقعی اند — جایگاه «برنده مسابقه» فقط روی برگه چاپ می آید */
-  function renderLeaf(leaf: PlanLeaf | null, side: SlotSide) {
+  function renderLeaf(leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) {
+    // نوار رنگی سمت بیرونی نیمه مربوطه می نشیند — برگه آینه ای
+    const barSide = match ? barSideForMatch(match, layout.width) : undefined;
     if (leaf?.kind === "winner") {
-      return <WinnerRow matchNumber={leaf.matchNumber} side={side} />;
+      return <WinnerRow matchNumber={leaf.matchNumber} side={side} barSide={barSide} />;
     }
     if (leaf?.kind !== "slot") {
       return <PositionRow side={side} />;
     }
-    return renderSlot(leaf.slotId, side);
+    return renderSlot(leaf.slotId, side, barSide);
   }
 
   const activeOccupant = activeSlotId ? draw.assignments[activeSlotId] : undefined;
   const activeParticipant = activeOccupant?.kind === "participant" ? participantsById.get(activeOccupant.participantId) : undefined;
+  // اندازه بج شماره از تنظیمات — ضریب روی اندازه پایه چیدمان
+  const matchChipSize = useTournament((state) => state.matchChipSize);
+  const chipSize = Math.round(dims.chipSize * matchChipFactor(matchChipSize));
 
   return (
     <DndContext
@@ -252,7 +264,7 @@ export function BracketCanvas({
                 autoText={matchNumbers?.get(`${draw.groupId}/${match.matchId}`)}
                 chipX={match.chipX}
                 chipY={match.chipY}
-                size={dims.chipSize}
+                size={chipSize}
               />
             ))}
         </div>
@@ -271,12 +283,14 @@ export function BracketCanvas({
                 text={activeParticipant.fullName}
                 baseSize={15}
                 minSize={9}
+                align="center"
                 className="font-bold leading-tight text-ink-900"
               />
               <FitText
                 text={activeParticipant.coachName}
                 baseSize={11.5}
                 minSize={8}
+                align="center"
                 className="font-medium leading-tight text-ink-700"
               />
             </div>
@@ -327,7 +341,9 @@ function MatchNumberChip({
   // نمایش رقم فارسی — در حین تایپ همان که کاربر می نویسد دیده می شود
   const value = focused ? override : toFaDigits(rawValue);
   const filled = rawValue.length > 0;
-  const { accent, halo } = matchChipTone(isFinal);
+  // رنگ و شکل بج از تنظیمات ظاهر شماره — بوم خارج از برگه است، رنگ همراه تم همان کلاسیک است
+  const chipStyle = useTournament((state) => state.matchChipStyle);
+  const palette = matchChipPalette(chipStyle, classicTheme, isFinal);
   const tooltip = matchNumberTooltip({ override, planText: autoText });
 
   return (
@@ -340,7 +356,7 @@ function MatchNumberChip({
           aria-hidden
           size={Math.round(size * 0.44)}
           className="pointer-events-none absolute inset-0 m-auto opacity-0 transition-opacity duration-150 group-hover:opacity-60"
-          style={{ color: isFinal ? "#b45309" : "#1e3a5f" }}
+          style={{ color: palette.accent }}
         />
       )}
       <input
@@ -356,27 +372,33 @@ function MatchNumberChip({
         spellCheck={false}
         aria-label="شماره مسابقه"
         title={tooltip}
-        className={`absolute inset-0 rounded-full text-center font-bold outline-none transition-[background-color,border-color,transform,box-shadow] duration-150 hover:scale-110 ${
-          filled
-            ? "cursor-default"
-            : "cursor-text border-2 border-dashed border-slate-300 bg-white hover:border-mat-600 hover:bg-amber-50"
-        }`}
+        className="absolute inset-0 text-center font-bold outline-none transition-[background-color,border-color,transform,box-shadow] duration-150 hover:scale-110"
         style={{
           padding: 0,
+          borderRadius: matchChipRadius(chipStyle.shape, size),
           fontSize: Math.round(size * 0.48),
           lineHeight: 1,
-          caretColor: accent,
-          color: filled ? "#ffffff" : "#94a3b8",
+          caretColor: palette.accent,
+          color: filled
+            ? chipStyle.fill === "solid"
+              ? palette.filledText
+              : palette.accent
+            : "#94a3b8",
           ...(filled
             ? {
-                border: `2px solid ${accent}`,
-                backgroundColor: accent,
+                cursor: "default",
+                border: `2px solid ${palette.accent}`,
+                backgroundColor:
+                  chipStyle.fill === "solid" ? palette.accent : palette.outlineBg,
                 boxShadow: focused
-                  ? `0 0 0 3px ${halo}, 0 1px 3px rgba(15, 31, 56, 0.35)`
+                  ? `0 0 0 3px ${palette.halo}, 0 1px 3px rgba(15, 31, 56, 0.35)`
                   : "0 1px 3px rgba(15, 31, 56, 0.35)",
               }
             : {
-                boxShadow: focused ? `0 0 0 3px ${halo}` : undefined,
+                cursor: "text",
+                border: `2px dashed ${focused ? palette.accent : "#cbd5e1"}`,
+                backgroundColor: focused ? palette.focusBg : "#ffffff",
+                boxShadow: focused ? `0 0 0 3px ${palette.halo}` : undefined,
               }),
         }}
       />

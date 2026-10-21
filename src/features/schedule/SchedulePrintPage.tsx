@@ -35,6 +35,7 @@ function readModeFromHash(): SchedulePrintMode {
 export function SchedulePrintPage() {
   const draws = useTournament((state) => state.draws)
   const meta = useTournament((state) => state.meta)
+  const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
   const [mode, setMode] = useState<SchedulePrintMode>(readModeFromHash)
   const [pdfBusy, setPdfBusy] = useState(false)
   const { participantsById, built, matchNumbers, manualNumbers } = useScheduleModel()
@@ -168,6 +169,7 @@ export function SchedulePrintPage() {
                 matchNumbers={matchNumbers}
                 matLabel={sheet.matLabel}
                 attendTime={sheet.attendTime}
+                beltLabel={tableBeltLabels[sheet.groupId] || undefined}
               />
             </div>
           ))

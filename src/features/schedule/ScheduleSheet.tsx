@@ -8,7 +8,6 @@ import {
 import { type TournamentMeta } from '../../store/tournamentStore.ts'
 import { renderWeightTitle, toFaDigits } from '../../lib/formatFa.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
-import { beltColorFor } from '../../lib/beltColor.ts'
 import { StatCell } from '../../components/StatCell.tsx'
 import { FitText } from '../../components/FitText.tsx'
 import { sideTheme, FINAL_GOLD } from '../bracket/sideColors.ts'
@@ -219,21 +218,9 @@ function WeightBlock({
   titleFormat: string
   tournamentTitle: string
 }) {
-  const belt = beltColorFor(weight.groupId)
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 0 4px' }}>
-        <span
-          aria-hidden
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 3,
-            backgroundColor: belt.hex,
-            border: belt.needsBorder ? '1px solid #b9c5d6' : undefined,
-            flexShrink: 0,
-          }}
-        />
         <span style={{ fontSize: 12.5, fontWeight: 700 }}>
           {renderWeightTitle(titleFormat, {
             ageCategory: weight.ageCategory,

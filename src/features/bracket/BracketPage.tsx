@@ -14,7 +14,6 @@ import {
 import { useTournament, isManualGroupId } from '../../store/tournamentStore.ts'
 import { useScheduleModel } from '../../lib/hooks.ts'
 import { Button } from '../../components/Button.tsx'
-import { beltColorFor } from '../../lib/beltColor.ts'
 import { groupTitle } from '../../lib/formatFa.ts'
 import { findSoloParticipant } from '../../lib/soloDraw.ts'
 import { BracketCanvas } from './BracketCanvas.tsx'
@@ -37,6 +36,8 @@ export function BracketPage() {
   const updateManualTableInfo = useTournament((state) => state.updateManualTableInfo)
   const medalRainTables = useTournament((state) => state.medalRainTables)
   const updateMedalRainInfo = useTournament((state) => state.updateMedalRainInfo)
+  const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const setTableBeltLabel = useTournament((state) => state.setTableBeltLabel)
   // the coach drawer floats OVER the canvas (closed by default) — the bracket
   // always keeps the full page width, even for 16/32 sheets
   const [coachPanelOpen, setCoachPanelOpen] = useState(false)
@@ -61,7 +62,6 @@ export function BracketPage() {
 
   if (!draw) return null
 
-  const belt = beltColorFor(draw.groupId)
   const canUndo = draw.history.length > 0
   const solo =
     draw.structure.roundCount === 0 ? findSoloParticipant(draw, participantsById) : null
@@ -77,11 +77,6 @@ export function BracketPage() {
             <ChevronRight size={16} />
             گروه ها
           </Button>
-          <span
-            aria-hidden
-            className="h-9 w-1.5 rounded-full"
-            style={{ backgroundColor: belt.hex }}
-          />
           <div>
             <h1 className="font-display text-2xl leading-7 text-ink-900">
               {groupTitle(draw.group.ageCategory, draw.group.weightCategory)}
@@ -211,6 +206,19 @@ export function BracketPage() {
                   className={`${headerFieldClass} w-20`}
                 />
               </label>
+              <label
+                className="flex items-center gap-1.5 text-xs text-muted"
+                title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
+              >
+                کمربند
+                <input
+                  value={tableBeltLabels[draw.groupId] ?? ''}
+                  onChange={(event) => setTableBeltLabel(draw.groupId, event.target.value)}
+                  placeholder="مثلا سبز و آبی"
+                  maxLength={40}
+                  className={`${headerFieldClass} w-32`}
+                />
+              </label>
               <p className="text-xs leading-5 text-muted">
                 {manualInfo
                   ? 'روی هر خانه کلیک کن تا نام هنرجو و مربی را بنویسی؛ با کشیدن کارت ها جای دو نفر را عوض کن. زمین و ساعت روی سربرگ چاپ می نشیند.'
@@ -218,12 +226,28 @@ export function BracketPage() {
               </p>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-xs leading-5 text-muted">
-              <Info size={14} className="shrink-0" />
-              اگر «برنامه ریزی زمین ها» ساخته باشد، شماره هر مسابقه خودش روی دایره کنار باکسش
-              می نشیند؛ با کلیک روی دایره می توانید آن را دستی عوض کنید. کارت را بکشید و رها کنید
-              تا جای دو نفر عوض شود.
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3">
+              <p className="flex items-center gap-2 text-xs leading-5 text-muted">
+                <Info size={14} className="shrink-0" />
+                اگر «برنامه ریزی زمین ها» ساخته باشد، شماره هر مسابقه خودش روی دایره کنار باکسش
+                می نشیند؛ با کلیک روی دایره می توانید آن را دستی عوض کنید. کارت را بکشید و رها کنید
+                تا جای دو نفر عوض شود.
+              </p>
+              <span className="flex-1" />
+              <label
+                className="flex items-center gap-1.5 text-xs text-muted"
+                title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
+              >
+                کمربند
+                <input
+                  value={tableBeltLabels[draw.groupId] ?? ''}
+                  onChange={(event) => setTableBeltLabel(draw.groupId, event.target.value)}
+                  placeholder="مثلا سبز و آبی"
+                  maxLength={40}
+                  className={`${headerFieldClass} w-32`}
+                />
+              </label>
+            </div>
           )}
           <div className="relative">
             <BracketCanvas draw={draw} matchNumbers={matchNumbers} />

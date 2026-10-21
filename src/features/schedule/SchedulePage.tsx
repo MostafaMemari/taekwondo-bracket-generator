@@ -54,8 +54,8 @@ import { EmptyState } from '../../components/EmptyState.tsx'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
 import { toEnDigits, toFaDigits, groupTitle, renderWeightTitle } from '../../lib/formatFa.ts'
+import { tableThemeById } from '../../lib/tableThemes.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
-import { beltColorFor } from '../../lib/beltColor.ts'
 import { compareByWeightLabel } from '../../lib/weightSorting.ts'
 import { realMatchCount, groupOptionLabel } from '../../lib/drawStats.ts'
 import { sideTheme } from '../bracket/sideColors.ts'
@@ -64,11 +64,13 @@ import { CoachRoster } from '../bracket/CoachRoster.tsx'
 import { ScheduleSheet } from './ScheduleSheet.tsx'
 import { exportScheduleBundlePdf, exportScheduleImage, exportScheduleToPdf } from './exportSchedule.ts'
 import { BracketSheet } from '../pdf/BracketSheet.tsx'
-import { exportImageFromElement, imageBaseName } from '../pdf/exportGroupImage.ts'
+import { exportSheetsAsA4Images } from '../pdf/exportGroupImage.ts'
 
 export function SchedulePage() {
   const draws = useTournament((state) => state.draws)
   const meta = useTournament((state) => state.meta)
+  const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const tableThemeId = useTournament((state) => state.tableThemeId)
   const scheduleSessions = useTournament((state) => state.scheduleSessions)
   const openGroups = useTournament((state) => state.openGroups)
   const addScheduleSession = useTournament((state) => state.addScheduleSession)
@@ -224,35 +226,29 @@ export function SchedulePage() {
         } else if (exporting === 'pdf-tables') {
           await exportScheduleBundlePdf(meta.title, 'tables')
         } else if (exporting === 'png-tables') {
-          const base = imageBaseName(meta.title)
-          for (let index = 0; index < activeTabSheets.length; index += 1) {
-            if (cancelled) return
-            // the off-screen sheets mount with ids pdf-sheet-0..n (the visible
-            // previews of the tables view use 1000+ so the ids never clash)
-            const element = document.getElementById(`pdf-sheet-${index}`)
-            if (!element) throw new Error('export sheet not found')
-            const sheet = activeTabSheets[index]
-            await exportImageFromElement(
-              element,
-              `${base} — ${renderWeightTitle(meta.sheetTitleFormat, {
-                ageCategory: sheet.draw.group.ageCategory,
-                weightCategory: sheet.draw.group.weightCategory,
+          // همه برگه ها روی قطع یکسان A4 رستر می شوند — نام فایل فقط از قالب
+          // عنوان می آید (عنوان مسابقات فقط با {عنوان} به قالب اضافه می شود)
+          // و پس زمینه بوم همرنگ تم جدول است
+          await exportSheetsAsA4Images(
+            activeTabSheets.map((_, index) => index),
+            (index) =>
+              renderWeightTitle(meta.sheetTitleFormat, {
+                ageCategory: activeTabSheets[index].draw.group.ageCategory,
+                weightCategory: activeTabSheets[index].draw.group.weightCategory,
                 tournamentTitle: meta.title,
-              })}`,
-            )
-            // مرورگر دانلودهای پشت سرهم را محدود می کند
-            await new Promise((resolve) => window.setTimeout(resolve, 350))
-          }
+              }),
+            tableThemeById(tableThemeId).canvasBg,
+          )
         } else if (exporting === 'sheet-image' && imageSheet) {
-          const element = document.getElementById('pdf-sheet-5000')
-          if (!element) throw new Error('single export sheet not found')
-          await exportImageFromElement(
-            element,
-            `${imageBaseName(meta.title)} — ${renderWeightTitle(meta.sheetTitleFormat, {
-              ageCategory: imageSheet.draw.group.ageCategory,
-              weightCategory: imageSheet.draw.group.weightCategory,
-              tournamentTitle: meta.title,
-            })}`,
+          await exportSheetsAsA4Images(
+            [5000],
+            () =>
+              renderWeightTitle(meta.sheetTitleFormat, {
+                ageCategory: imageSheet.draw.group.ageCategory,
+                weightCategory: imageSheet.draw.group.weightCategory,
+                tournamentTitle: meta.title,
+              }),
+            tableThemeById(tableThemeId).canvasBg,
           )
         }
       } catch (error) {
@@ -267,7 +263,7 @@ export function SchedulePage() {
     return () => {
       cancelled = true
     }
-  }, [exporting, meta, activeTabSheets, imageSheet])
+  }, [exporting, meta, activeTabSheets, imageSheet, tableThemeId])
 
   const exportDisabled = scheduleSessions.length === 0 || built.totalMatches === 0
 
@@ -460,6 +456,7 @@ export function SchedulePage() {
                     matchNumbers={matchNumbers}
                     matLabel={imageSheet.matLabel}
                     attendTime={imageSheet.attendTime}
+                    beltLabel={tableBeltLabels[imageSheet.groupId] || undefined}
                   />
                 ) : (
                   activeTabSheets.map((sheet, index) => (
@@ -473,6 +470,7 @@ export function SchedulePage() {
                       matchNumbers={matchNumbers}
                       matLabel={sheet.matLabel}
                       attendTime={sheet.attendTime}
+                      beltLabel={tableBeltLabels[sheet.groupId] || undefined}
                     />
                   ))
                 )}
@@ -557,6 +555,9 @@ function TablesView({
   onGoPlan,
   onExportSheetImage,
 }: TablesViewProps) {
+  // برچسب دستی کمربند هر جدول — روی سربرگ برگه ها می نشیند
+  const tableBeltLabels = useTournament((state) => state.tableBeltLabels)
+  const setTableBeltLabel = useTournament((state) => state.setTableBeltLabel)
   // نوار مربی های هر برگه — همیشه حداکثر یکی باز است
   const [coachOpenFor, setCoachOpenFor] = useState<string | null>(null)
   // هنرجویی که در «حالت جدولی» کشیده می شود — پیش نمایش شناور نامش را نشان می دهد
@@ -682,7 +683,6 @@ function TablesView({
         onDragCancel={() => setSheetDrag(null)}
       >
         {visibleSheets.map((sheet) => {
-        const belt = beltColorFor(sheet.groupId)
         const ordinal = (sheetOrdinal.get(sheet.groupId) ?? 0) + 1
         const coachOpen = coachOpenFor === sheet.groupId
         const rows = coachRowsOf(sheet.draw, participantsById)
@@ -695,7 +695,6 @@ function TablesView({
               <span className="rounded-md bg-ink-900 px-2 py-0.5 text-[11px] font-bold text-white">
                 جدول {toFaDigits(ordinal)}
               </span>
-              <BeltDot hex={belt.hex} needsBorder={belt.needsBorder} />
               <span className="text-sm font-bold text-ink-900">
                 {renderWeightTitle(meta.sheetTitleFormat, {
                   ageCategory: sheet.draw.group.ageCategory,
@@ -704,6 +703,19 @@ function TablesView({
                 })}
               </span>
               <span className="text-[11px] text-muted">{sheet.note}</span>
+              <label
+                className="flex items-center gap-1 text-[11px] text-muted"
+                title="کمربند دستی این جدول — روی سربرگ برگه به شکل بج کوچک کنار عنوان وزن می نشیند"
+              >
+                کمربند
+                <input
+                  value={tableBeltLabels[sheet.groupId] ?? ''}
+                  onChange={(event) => setTableBeltLabel(sheet.groupId, event.target.value)}
+                  placeholder="مثلا سبز و آبی"
+                  maxLength={40}
+                  className="w-24 rounded-lg border border-line-strong bg-white px-2 py-1 text-[11px] font-medium text-ink-900 outline-none transition-colors focus:border-mat-600 placeholder:font-normal placeholder:text-slate-400"
+                />
+              </label>
               <span className="flex-1" />
               <SheetChipButton
                 onClick={() => setCoachOpenFor(coachOpen ? null : sheet.groupId)}
@@ -765,6 +777,7 @@ function TablesView({
                 interactiveSwaps
                 matLabel={sheet.matLabel}
                 attendTime={sheet.attendTime}
+                beltLabel={tableBeltLabels[sheet.groupId] || undefined}
               />
             </div>
           </div>
@@ -812,20 +825,6 @@ function TablesView({
         </DragOverlay>
       </DndContext>
     </div>
-  )
-}
-
-/** مربع رنگی کوچک کنار نام وزن — رنگ کمربندی گروه، با خط دور برای رنگ روشن */
-function BeltDot({ hex, needsBorder }: { hex: string; needsBorder?: boolean }) {
-  return (
-    <span
-      aria-hidden
-      className="size-2.5 rounded-[3px]"
-      style={{
-        backgroundColor: hex,
-        boxShadow: needsBorder ? 'inset 0 0 0 1px #b9c5d6' : undefined,
-      }}
-    />
   )
 }
 
@@ -1087,10 +1086,6 @@ function MatEditor({
           {scheduledMat?.weights.map((weight) => (
             <div key={weight.groupId}>
               <div className="flex items-center gap-1.5 pb-1 pt-2">
-                <BeltDot
-                  hex={beltColorFor(weight.groupId).hex}
-                  needsBorder={beltColorFor(weight.groupId).needsBorder}
-                />
                 <span className="text-[11.5px] font-bold text-ink-900">
                   {groupTitle(weight.ageCategory, weight.weightCategory)}
                 </span>
@@ -1154,7 +1149,7 @@ function SideCell({ text, accent }: { text: string; accent: string }) {
  * نشان می دهد؛ با کلیک، به یک ورودی کوچک تبدیل می شود و عدد دستی جایگزین می کند
  * (در localStorage ذخیره می شود و روی دایره خودِ جدول هم همان دیده می شود).
  * پاک کردن ورودی و ثبت آن = بازگشت به شماره برنامه. حلقه کهربایی یعنی دستی.
- * رنگ بج (طلایی فینال / سرمه ای) از «matchChipTone» مشترک می آید.
+ * این بج فهرست برنامه است — ظاهر بج روی خود جدول ها از تنظیمات «ظاهر شماره» می آید.
  */
 function SeqBadge({
   groupId,

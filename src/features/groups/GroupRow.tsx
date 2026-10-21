@@ -1,7 +1,6 @@
 import { ChevronLeft, FileDown, ImageDown, Trash2 } from "lucide-react";
 import type { GroupDraw, Participant } from "../../core/types.ts";
 import { useTournament } from "../../store/tournamentStore.ts";
-import { beltColorFor } from "../../lib/beltColor.ts";
 import { realMatchCount } from "../../lib/drawStats.ts";
 import { toFaDigits } from "../../lib/formatFa.ts";
 
@@ -25,18 +24,9 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
   const isManual = Boolean(manualTables[draw.groupId]);
   const isMedalRain = Boolean(medalRainTables[draw.groupId]);
   const participantCount = solo ? 1 : draw.group.participantIds.length;
-  const belt = beltColorFor(draw.groupId);
 
   return (
     <div className="group relative flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-turf">
-      <span
-        aria-hidden
-        className="size-2.5 shrink-0 rounded-full"
-        style={{
-          backgroundColor: belt.hex,
-          boxShadow: belt.needsBorder ? "inset 0 0 0 1.5px #b9c5d6" : undefined,
-        }}
-      />
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-right">
         <span className="shrink-0 font-display text-lg leading-7 text-ink-900">
           وزن {toFaDigits(draw.group.weightCategory)}

@@ -5,6 +5,7 @@ import {
   buildStagedPrintPlans,
   computeBracketLayout,
   computePlanLayout,
+  barSideForMatch,
   fitPrintDims,
   type BracketLayout,
   type LayoutDims,
@@ -13,8 +14,20 @@ import {
   type SlotSide,
 } from "../../core/bracket/layout.ts";
 import type { TournamentMeta } from "../../store/tournamentStore.ts";
-import { beltColorFor } from "../../lib/beltColor.ts";
+import { useTournament } from "../../store/tournamentStore.ts";
 import { renderWeightTitle, toFaDigits } from "../../lib/formatFa.ts";
+import {
+  matchChipFactor,
+  matchChipPalette,
+  matchChipRadius,
+} from "../../lib/matchChipStyles.ts";
+import {
+  TableThemeScope,
+  useTableTheme,
+} from "../../lib/tableThemeContext.ts";
+import {
+  tableThemeById,
+} from "../../lib/tableThemes.ts";
 import { realMatchCount } from "../../lib/drawStats.ts";
 import { findSoloParticipant } from "../../lib/soloDraw.ts";
 import { roundLabel } from "../../lib/roundLabels.ts";
@@ -27,9 +40,7 @@ import {
   PositionRow,
   WinnerRow,
 } from "../bracket/SlotRows.tsx";
-import { FINAL_GOLD } from "../bracket/sideColors.ts";
 import {
-  matchChipTone,
   matchNumberTooltip,
   useMatchNumberField,
 } from "../bracket/matchNumberField.ts";
@@ -41,8 +52,6 @@ export const pageHeight = 770;
 
 const HEADER_HEIGHT = 104;
 const SHEET_PAD_X = 30;
-/** جدول نتایج دستنویس پای برگه — ارتفاع ثابت و شناخته شده برای صفحه بندی */
-const RESULTS_HEIGHT = 126;
 
 interface BracketSheetProps {
   draw: GroupDraw;
@@ -80,6 +89,12 @@ interface BracketSheetProps {
   /** ساعت حضور این برگه — فقط یک زمان (ساعت شروع بازه)، مثلا «۸:۰۰» */
   attendTime?: string;
   /**
+   * کمربند دستی این جدول — مثلا «سبز و آبی» — کاربر خودش تایپ می کند و به
+   * شکل یک بج کوچک کنار عنوان وزن روی سربرگ می نشیند (عمدا خیلی کوچک تر از
+   * بج های زمین و ساعت).
+   */
+  beltLabel?: string;
+  /**
    * حالت تعاملی دوم (پیش نمایش «حالت جدولی»): ردیف هر هنرجو قابل کشیدن و هر
    * خانه قابل رها کردن است — جای دو هنرجو عوض می شود؛ رها کردن روی گوشه
    * «استراحت» هم استراحت را به هنرجوی کشیده شده منتقل می کند (تعویض با صاحب
@@ -100,8 +115,17 @@ export function BracketSheet({
   editableNumbers = false,
   matLabel,
   attendTime,
+  beltLabel,
   interactiveSwaps = false,
 }: BracketSheetProps) {
+  // تم جدول — از تنظیمات؛ برگه و همه خروجی هایش با همین رنگ می نشیند
+  const tableThemeId = useTournament((state) => state.tableThemeId);
+  const theme = tableThemeById(tableThemeId);
+  // ظاهر بج شماره مسابقه — شکل و رنگ دلخواه از تنظیمات
+  const matchChipStyle = useTournament((state) => state.matchChipStyle);
+  // اندازه بج شماره — ضریب روی اندازه پایه چیدمان
+  const matchChipSize = useTournament((state) => state.matchChipSize);
+  const chipScale = matchChipFactor(matchChipSize);
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
   const withResults = variant === "print" && draw.structure.roundCount > 0;
   // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر
@@ -116,8 +140,9 @@ export function BracketSheet({
    */
   const plans = useMemo(() => buildStagedPrintPlans(draw.structure), [draw.structure]);
 
-  // چاپ/PDF = صفحه بندی شده؛ عکس تلگرامی و پیش نمایش تعاملی حالت جدولی = تک برگه
-  const paged = variant === "print" && !editableNumbers && !isSolo && plans.length > 1;
+  // چاپ/PDF و عکس تلگرامی هر دو صفحه بندی شده رندر می شوند تا همه خروجی ها
+  // قطع یکسان A4 بگیرند؛ فقط پیش نمایش های تعاملی تک برگه می مانند
+  const paged = !editableNumbers && !isSolo && plans.length > 1;
 
   const wholeDims: LayoutDims = fitPrintDims(draw.structure.roundCount, bodyWidth);
   const wholeLayout = useMemo(
@@ -130,8 +155,10 @@ export function BracketSheet({
     side: SlotSide,
     dims: LayoutDims,
     match?: LayoutMatch,
+    barSide?: "left" | "right",
   ) {
-    if (leaf?.kind === "winner") return <WinnerRow matchNumber={leaf.matchNumber} side={side} />;
+    if (leaf?.kind === "winner")
+      return <WinnerRow matchNumber={leaf.matchNumber} side={side} barSide={barSide} />;
     if (leaf?.kind !== "slot") return <PositionRow side={side} />;
     const occupant = draw.assignments[leaf.slotId];
     if (occupant.kind === "bye") {
@@ -164,6 +191,7 @@ export function BracketSheet({
         nameFontSize={dims.nameFontSize}
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
+        barSide={barSide}
       />
     );
     if (!interactiveSwaps) return row;
@@ -181,7 +209,6 @@ export function BracketSheet({
   }
 
   function renderHeader() {
-    const belt = beltColorFor(draw.groupId);
     const participantCount = draw.group.participantIds.length;
     const restCount = draw.structure.restSlotIds.length;
     const title = meta.title || "قرعه کشی مسابقات تکواندو";
@@ -196,7 +223,7 @@ export function BracketSheet({
           alignItems: "center",
           gap: 16,
           padding: `0 ${SHEET_PAD_X}px`,
-          borderBottom: "2.5px solid #101d31",
+          borderBottom: `2.5px solid ${theme.headerRule}`,
         }}
       >
         {/* right (RTL start): the one and only logo */}
@@ -227,6 +254,7 @@ export function BracketSheet({
               overflow: "hidden",
               textOverflow: "ellipsis",
               textAlign: "center",
+              color: theme.titleText,
             }}
           >
             {title}
@@ -237,7 +265,7 @@ export function BracketSheet({
             <p
               style={{
                 fontSize: 12.5,
-                color: "#5b6b82",
+                color: theme.subtitleText,
                 margin: "3px 0 0",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -258,24 +286,32 @@ export function BracketSheet({
               fontSize: 15,
               fontWeight: 700,
               whiteSpace: "nowrap",
+              overflow: "hidden",
             }}
           >
-            <span
-              aria-hidden
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: 3,
-                backgroundColor: belt.hex,
-                border: belt.needsBorder ? "1px solid #b9c5d6" : undefined,
-                flexShrink: 0,
-              }}
-            />
             {renderWeightTitle(meta.sheetTitleFormat, {
               ageCategory: draw.group.ageCategory,
               weightCategory: draw.group.weightCategory,
               tournamentTitle: meta.title,
             })}
+            {/* کمربند دستی — بج کوچک کنار عنوان، خیلی کوچک تر از بج های زمین/ساعت */}
+            {beltLabel && (
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: theme.chipText,
+                  backgroundColor: theme.chipBg,
+                  border: `1px solid ${theme.chipBorder}`,
+                  borderRadius: 999,
+                  padding: "2.5px 12px 3.5px",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                کمربند {beltLabel}
+              </span>
+            )}
           </p>
           {/* زمین و ساعت حضور — درشت و خوانا تا از دور دیده شود */}
           {hasMatBadge && (
@@ -295,8 +331,8 @@ export function BracketSheet({
                     fontFamily: "Lalezar, Vazirmatn, sans-serif",
                     fontSize: 21,
                     lineHeight: 1,
-                    color: "#ffffff",
-                    backgroundColor: "#1e3a5f",
+                    color: theme.matBadgeText,
+                    backgroundColor: theme.matBadgeBg,
                     borderRadius: 8,
                     padding: "6px 18px 8px",
                     letterSpacing: 0.5,
@@ -311,9 +347,9 @@ export function BracketSheet({
                     fontFamily: "Lalezar, Vazirmatn, sans-serif",
                     fontSize: 21,
                     lineHeight: 1,
-                    color: "#1e3a5f",
-                    backgroundColor: "#ffffff",
-                    border: "2px solid #1e3a5f",
+                    color: theme.timeBadgeText,
+                    backgroundColor: theme.timeBadgeBg,
+                    border: `2px solid ${theme.timeBadgeBorder}`,
                     borderRadius: 8,
                     padding: "4px 16px 6px",
                     letterSpacing: 0.5,
@@ -331,7 +367,7 @@ export function BracketSheet({
           <div
             style={{
               display: "flex",
-              border: "1.5px solid #b9c5d6",
+              border: `1.5px solid ${theme.statBorder}`,
               borderRadius: 10,
               overflow: "hidden",
             }}
@@ -380,7 +416,7 @@ export function BracketSheet({
                 key={connectorIndex}
                 points={points.map((point) => `${point.x},${point.y}`).join(" ")}
                 fill="none"
-                stroke="#475569"
+                stroke={theme.connector}
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -395,7 +431,7 @@ export function BracketSheet({
               style={{
                 position: "absolute",
                 left: column.x,
-                top: 12,
+                top: 3,
                 width: Math.max(64, dims.columnPitch - 8),
                 transform: "translateX(-50%)",
               }}
@@ -406,7 +442,7 @@ export function BracketSheet({
                 minSize={8}
                 align="center"
                 className="font-bold"
-                style={{ color: "#27405f" }}
+                style={{ color: theme.roundLabel }}
               />
             </div>
           ))}
@@ -426,7 +462,9 @@ export function BracketSheet({
                 match={match}
                 roundCount={draw.structure.roundCount}
                 dims={dims}
-                renderLeaf={(leaf, side) => renderLeaf(leaf, side, dims, match)}
+                renderLeaf={(leaf, side) =>
+                  renderLeaf(leaf, side, dims, match, barSideForMatch(match, layout.width))
+                }
               />
             </div>
           ))}
@@ -443,13 +481,13 @@ export function BracketSheet({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "linear-gradient(135deg, #fbbf24, #d97706)",
+                background: `linear-gradient(135deg, ${theme.championFrom}, ${theme.championTo})`,
                 borderRadius: 10,
-                color: "#ffffff",
+                color: theme.championText,
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
                 fontSize: 22,
                 letterSpacing: 1.5,
-                boxShadow: "0 2px 8px rgba(180, 83, 9, 0.35)",
+                boxShadow: theme.championShadow,
               }}
             >
               قهرمان
@@ -467,9 +505,9 @@ export function BracketSheet({
                 whiteSpace: "nowrap",
                 fontSize: 11.5,
                 fontWeight: 700,
-                color: "#1e3a5f",
-                backgroundColor: "#eef2f7",
-                border: "1.5px solid #b9c5d6",
+                color: theme.continueText,
+                backgroundColor: theme.continueBg,
+                border: `1.5px solid ${theme.continueBorder}`,
                 borderRadius: 999,
                 padding: "4px 14px",
               }}
@@ -482,8 +520,10 @@ export function BracketSheet({
             .filter((match) => match.contested)
             .map((match) => {
               const isFinal = match.round === draw.structure.roundCount;
-              const chipSize = dims.chipSize;
-              const accent = isFinal ? FINAL_GOLD : "#1e3a5f";
+              // اندازه بج — اندازه پایه چیدمان × ضریب انتخابی تنظیمات
+              const chipSize = Math.round(dims.chipSize * chipScale);
+              // رنگ بج — رنگ دلخواه کاربر یا رنگ تم؛ فینال همراه تم طلایی می ماند
+              const palette = matchChipPalette(matchChipStyle, theme, isFinal);
               const key = `${draw.groupId}/${match.matchId}`;
               const text = matchNumbers?.get(key) ?? "";
               if (editableNumbers) {
@@ -518,13 +558,21 @@ export function BracketSheet({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    backgroundColor: text ? accent : "#ffffff",
-                    color: text ? "#ffffff" : undefined,
+                    backgroundColor: text
+                      ? matchChipStyle.fill === "solid"
+                        ? palette.accent
+                        : palette.outlineBg
+                      : palette.emptyBg,
+                    color: text
+                      ? matchChipStyle.fill === "solid"
+                        ? palette.filledText
+                        : palette.accent
+                      : undefined,
                     fontSize: Math.round(chipSize * 0.44),
                     fontWeight: 700,
                     lineHeight: 1,
-                    border: `2px solid ${accent}`,
-                    borderRadius: 999,
+                    border: `2px solid ${palette.accent}`,
+                    borderRadius: matchChipRadius(matchChipStyle.shape, chipSize),
                     boxShadow: "0 1px 2px rgba(15, 31, 56, 0.18)",
                   }}
                 >
@@ -545,8 +593,8 @@ export function BracketSheet({
 
   const sheetStyle: React.CSSProperties = {
     width: sheetWidth,
-    backgroundColor: "#ffffff",
-    color: "#101d31",
+    backgroundColor: theme.sheetBg,
+    color: theme.sheetText,
     display: "flex",
     flexDirection: "column",
     alignItems: "stretch",
@@ -554,64 +602,63 @@ export function BracketSheet({
     fontFamily: "Vazirmatn, sans-serif",
   };
 
-  // ————— مسیر تک برگه: عکس تلگرامی، پیش نمایش تعاملی و برگه های تک صفحه ای —————
+  // ————— مسیر تک برگه: همیشه یک صفحه کامل A4 با ارتفاع ثابت —————
+  // برگه های کوچک (۲ و ۴ نفره) هم با همین قطع رندر می شوند تا خروجی عکس همه
+  // جدول ها — از ۲ تا ۱۶ نفره — هم اندازه و هم قطع باشد؛ محتوا وسط صفحه می نشیند
   if (!paged) {
     const soloContent = isSolo && (
       <SoloWinnerStatement solo={findSoloParticipant(draw, participantsById)} />
     );
-    const wholeHeight = isSolo
-      ? pageHeight
-      : headerHeight +
-        8 +
-        wholeLayout.height +
-        (withResults ? 12 + RESULTS_HEIGHT : 14) +
-        12;
     return (
-      <div
-        id={`pdf-sheet-${index}`}
-        className={`print-sheet print-page ${variant === "print" ? "shadow-2xl" : ""}`}
-        dir="rtl"
-        style={{ ...sheetStyle, height: wholeHeight }}
-      >
-        {isSolo ? (
-          <main
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: `0 ${SHEET_PAD_X}px`,
-            }}
-          >
-            {soloContent}
-          </main>
-        ) : (
-          <>
-            {renderHeader()}
+      <TableThemeScope theme={theme}>
+        <div
+          id={`pdf-sheet-${index}`}
+          className={`print-sheet print-page ${variant === "print" ? "shadow-2xl" : ""}`}
+          dir="rtl"
+          style={{ ...sheetStyle, height: pageHeight }}
+        >
+          {isSolo ? (
             <main
               style={{
                 flex: 1,
-                padding: `8px ${SHEET_PAD_X}px 0`,
-                minHeight: 0,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 12,
+                justifyContent: "center",
+                padding: `0 ${SHEET_PAD_X}px`,
               }}
             >
-              {renderBand(wholeLayout, wholeDims)}
-              {renderResults()}
+              {soloContent}
             </main>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              {renderHeader()}
+              <main
+                style={{
+                  flex: 1,
+                  padding: `8px ${SHEET_PAD_X}px 0`,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                }}
+              >
+                {renderBand(wholeLayout, wholeDims)}
+                {renderResults()}
+              </main>
+            </>
+          )}
+        </div>
+      </TableThemeScope>
     );
   }
 
   // ————— مسیر چند صفحه ای: صفحات نوار + صفحه پایانی، همه با ابعاد یکسان —————
   return (
-    <div data-pdf-group={index} data-page-count={plans.length}>
+    <TableThemeScope theme={theme}>
+      <div data-pdf-group={index} data-page-count={plans.length}>
       {plans.map((plan, page) => {
         const dims = fitPrintDims(plan.columns, bodyWidth);
         const layout = computePlanLayout(plan.plan, dims);
@@ -622,7 +669,7 @@ export function BracketSheet({
         return (
           <div
             key={page}
-            className="print-page pdf-page shadow-2xl"
+            className={`print-page pdf-page ${variant === "print" ? "shadow-2xl" : ""}`}
             style={{ ...sheetStyle, height: pageHeight }}
           >
             {isFirst ? (
@@ -654,7 +701,8 @@ export function BracketSheet({
           </div>
         );
       })}
-    </div>
+      </div>
+    </TableThemeScope>
   );
 }
 
@@ -672,6 +720,7 @@ function ContinuationHeader({
   page: number;
   total: number;
 }) {
+  const theme = useTableTheme();
   return (
     <div
       dir="rtl"
@@ -683,7 +732,7 @@ function ContinuationHeader({
         justifyContent: "space-between",
         gap: 12,
         padding: `0 ${SHEET_PAD_X}px`,
-        borderBottom: "1.5px solid #101d31",
+        borderBottom: `1.5px solid ${theme.contRule}`,
       }}
     >
       <span
@@ -703,9 +752,9 @@ function ContinuationHeader({
           weightCategory: draw.group.weightCategory,
           tournamentTitle: meta.title,
         })}
-        <span style={{ fontSize: 10.5, fontWeight: 500, color: "#5b6b82" }}>— {note}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 500, color: theme.contMuted }}>— {note}</span>
       </span>
-      <span style={{ fontSize: 10.5, color: "#5b6b82", whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 10.5, color: theme.contMuted, whiteSpace: "nowrap" }}>
         صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
       </span>
     </div>
@@ -723,16 +772,17 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
   const ranks = withBronze
     ? ["نفر اول", "نفر دوم", "نفر سوم", "نفر چهارم"]
     : ["نفر اول", "نفر دوم", "نفر سوم (مشترک)", "نفر سوم (مشترک)"];
+  const theme = useTableTheme();
   return (
     <div
       style={{
         width: "100%",
         maxWidth: 420,
         flexShrink: 0,
-        border: "1.5px solid #94a3b8",
+        border: `1.5px solid ${theme.resultsBorder}`,
         borderRadius: 10,
         overflow: "hidden",
-        backgroundColor: "#ffffff",
+        backgroundColor: theme.resultsCellBg,
       }}
     >
       <div
@@ -742,27 +792,27 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
           alignItems: "baseline",
           justifyContent: "space-between",
           gap: 10,
-          backgroundColor: "#1e3a5f",
-          color: "#ffffff",
+          backgroundColor: theme.resultsHeaderBg,
+          color: theme.resultsHeaderText,
           padding: "4px 12px",
         }}
       >
         <span style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap" }}>
           نتایج نهایی
         </span>
-        <span style={{ fontSize: 8.5, color: "#c7d4e6" }}>
+        <span style={{ fontSize: 8.5, color: theme.resultsHeaderSub }}>
           نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
         </span>
       </div>
-      <div dir="rtl" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", backgroundColor: "#ffffff" }}>
+      <div dir="rtl" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", backgroundColor: theme.resultsCellBg }}>
         {ranks.map((rank, index) => (
           <div
             key={rank + index}
             style={{
               padding: "4px 12px 7px",
-              borderTop: index >= 2 ? "1px solid #cbd5e1" : undefined,
-              borderInlineEnd: index % 2 === 0 ? "1px solid #cbd5e1" : undefined,
-              backgroundColor: "#ffffff",
+              borderTop: index >= 2 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
+              borderInlineEnd: index % 2 === 0 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
+              backgroundColor: theme.resultsCellBg,
             }}
           >
             <p
@@ -770,7 +820,7 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
                 margin: 0,
                 fontSize: 10,
                 fontWeight: 700,
-                color: "#27405f",
+                color: theme.resultsRankText,
                 whiteSpace: "nowrap",
               }}
             >
@@ -778,7 +828,7 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
             </p>
             <div
               aria-hidden
-              style={{ marginTop: 6, height: 14, borderBottom: "1.5px dotted #7e93af" }}
+              style={{ marginTop: 6, height: 14, borderBottom: `1.5px dotted ${theme.resultsDotted}` }}
             />
           </div>
         ))}
@@ -822,7 +872,10 @@ function SheetNumberChip({
   // نمایش رقم فارسی — در حین تایپ همان که کاربر می نویسد دیده می شود
   const value = focused ? override : toFaDigits(rawValue);
   const filled = rawValue.length > 0;
-  const { accent, halo } = matchChipTone(isFinal);
+  // رنگ و شکل بج با تم جدول و انتخاب ظاهر شماره — فینال همراه تم طلایی می ماند
+  const theme = useTableTheme();
+  const chipStyle = useTournament((state) => state.matchChipStyle);
+  const palette = matchChipPalette(chipStyle, theme, isFinal);
   const tooltip = matchNumberTooltip({
     override,
     planText: override ? planText : effectiveText,
@@ -849,26 +902,31 @@ function SheetNumberChip({
         width: size,
         height: size,
         padding: 0,
-        borderRadius: 999,
+        borderRadius: matchChipRadius(chipStyle.shape, size),
         textAlign: "center",
         fontSize: Math.round(size * 0.48),
         fontWeight: 700,
         lineHeight: 1,
-        caretColor: accent,
-        color: filled ? "#ffffff" : "#94a3b8",
+        caretColor: palette.accent,
+        color: filled
+          ? chipStyle.fill === "solid"
+            ? palette.filledText
+            : palette.accent
+          : palette.emptyText,
         cursor: filled ? "default" : "text",
         ...(filled
           ? {
-              border: `2px solid ${accent}`,
-              backgroundColor: accent,
+              border: `2px solid ${palette.accent}`,
+              backgroundColor:
+                chipStyle.fill === "solid" ? palette.accent : palette.outlineBg,
               boxShadow: focused
-                ? `0 0 0 3px ${halo}, 0 1px 3px rgba(15, 31, 56, 0.35)`
+                ? `0 0 0 3px ${palette.halo}, 0 1px 3px rgba(15, 31, 56, 0.35)`
                 : "0 1px 2px rgba(15, 31, 56, 0.18)",
             }
           : {
-              border: `2px dashed ${focused ? accent : "#cbd5e1"}`,
-              backgroundColor: focused ? "#fffbeb" : "#ffffff",
-              boxShadow: focused ? `0 0 0 3px ${halo}` : undefined,
+              border: `2px dashed ${focused ? palette.accent : palette.emptyBorder}`,
+              backgroundColor: focused ? palette.focusBg : palette.emptyBg,
+              boxShadow: focused ? `0 0 0 3px ${palette.halo}` : undefined,
             }),
       }}
     />
@@ -876,6 +934,7 @@ function SheetNumberChip({
 }
 
 function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
+  const theme = useTableTheme();
   return (
     <div
       style={{
@@ -887,7 +946,7 @@ function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
         padding: "30px 0",
       }}
     >
-      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#5b6b82" }}>
+      <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: theme.soloMuted }}>
         تنها شرکت کننده این دسته وزنی
       </p>
       <p
@@ -896,13 +955,13 @@ function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
           fontFamily: "Lalezar, Vazirmatn, sans-serif",
           fontSize: 32,
           lineHeight: 1.25,
-          color: "#101d31",
+          color: theme.soloNameText,
         }}
       >
         {solo?.fullName ?? "—"}
       </p>
       {solo && (
-        <p style={{ margin: 0, fontSize: 13.5, color: "#5b6b82" }}>مربی: {solo.coachName}</p>
+        <p style={{ margin: 0, fontSize: 13.5, color: theme.soloMuted }}>مربی: {solo.coachName}</p>
       )}
       <p
         style={{
@@ -911,11 +970,11 @@ function SoloWinnerStatement({ solo }: { solo: Participant | null }) {
           fontSize: 13,
           lineHeight: 1.9,
           textAlign: "center",
-          backgroundColor: "#fdf7e7",
-          border: "1px solid #e3cf9a",
+          backgroundColor: theme.soloNoteBg,
+          border: `1px solid ${theme.soloNoteBorder}`,
           borderRadius: 8,
           padding: "10px 20px",
-          color: "#27405f",
+          color: theme.soloNoteText,
         }}
       >
         بدون برگزاری مسابقه، به طور خودکار قهرمان این وزن اعلام می شود.

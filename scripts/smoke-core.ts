@@ -19,6 +19,23 @@ import { groupByCategory } from '../src/core/grouping/groupByCategory.ts'
 import { buildSchedule, flattenGroupMatches } from '../src/core/schedule/schedule.ts'
 import type { BracketStructureNode, Participant } from '../src/core/types.ts'
 import { realMatchCount } from '../src/lib/drawStats.ts'
+import {
+  classicTheme,
+  tableThemeById,
+  tableThemes,
+} from '../src/lib/tableThemes.ts'
+import {
+  defaultMatchChipStyle,
+  matchChipFactor,
+  matchChipModes,
+  matchChipPalette,
+  matchChipRadius,
+  matchChipSizeOptions,
+  normalizeMatchChipSize,
+  normalizeMatchChipStyle,
+  type MatchChipSize,
+  type MatchChipStyle,
+} from '../src/lib/matchChipStyles.ts'
 
 let failures = 0
 
@@ -620,6 +637,246 @@ const rainSchedule = buildSchedule([rainSession], { [bronzeGroup.id]: bronzeDraw
 const rainMatches = rainSchedule.sessions[0].mats[0].weights[0].matches
 check('bronze: mat numbering runs SF(1,2) → bronze(3) → final(4)',
   rainMatches.map((match) => match.seq).join(',') === '1,2,3,4',
+)
+
+// ————— تم های جدول — گزینه های تنظیمات و وفاداری تم کلاسیک —————
+check('themes: seven themes with unique ids and Persian names',
+  tableThemes.length === 7 &&
+    new Set(tableThemes.map((theme) => theme.id)).size === 7 &&
+    tableThemes.every((theme) => theme.id.length > 0 && theme.name.length > 0),
+)
+check('themes: classic is first and the neutral default',
+  tableThemes[0].id === 'classic' && tableThemeById(undefined).id === 'classic',
+)
+check('themes: unknown id falls back to classic',
+  tableThemeById('no-such-theme').id === 'classic' && tableThemeById(42).id === 'classic',
+)
+check('themes: classic matches the previous hardcoded sheet colours',
+  classicTheme.sheetBg === '#ffffff' &&
+    classicTheme.sheetText === '#101d31' &&
+    classicTheme.matBadgeBg === '#1e3a5f' &&
+    classicTheme.matchAccent === '#1e3a5f' &&
+    classicTheme.finalAccent === '#d97706' &&
+    classicTheme.connector === '#475569' &&
+    classicTheme.boxBorder === '#cbd5e1' &&
+    classicTheme.resultsHeaderBg === '#1e3a5f',
+)
+check('themes: corner colours stay blue(chong)/red(hong) in every theme',
+  tableThemes.every((theme) =>
+    theme.sides.chong.accent !== theme.sides.hong.accent &&
+    theme.sides.chong.accent.length > 0 &&
+    theme.sides.hong.accent.length > 0,
+  ),
+)
+check('themes: every theme covers the full token surface',
+  tableThemes.every((theme) =>
+    [theme.sheetBg, theme.headerRule, theme.titleText, theme.subtitleText,
+      theme.chipText, theme.chipBg, theme.chipBorder, theme.matBadgeText, theme.matBadgeBg,
+      theme.timeBadgeText, theme.timeBadgeBg, theme.timeBadgeBorder, theme.statBorder,
+      theme.statDivider, theme.statLabel, theme.connector, theme.roundLabel,
+      theme.matchAccent, theme.finalAccent, theme.chipEmptyBg, theme.chipEmptyText,
+      theme.chipFocusBg, theme.championFrom, theme.championTo, theme.championText,
+      theme.championShadow, theme.continueText, theme.continueBg, theme.continueBorder,
+      theme.boxBorder, theme.boxRestBorder, theme.boxBg, theme.bronzeBorder, theme.bronzeLabel,
+      theme.nameText, theme.coachText, theme.byeBg, theme.resultsBorder, theme.resultsHeaderBg,
+      theme.resultsHeaderText, theme.resultsHeaderSub, theme.resultsInnerBorder,
+      theme.resultsRankText, theme.resultsDotted, theme.resultsCellBg, theme.soloNoteBg,
+      theme.soloNoteBorder, theme.soloNoteText, theme.soloMuted, theme.soloNameText,
+      theme.contRule, theme.contMuted, theme.canvasBg,
+    ].every((token) => typeof token === 'string' && token.length > 0),
+  ),
+)
+check('themes: dark theme letterbox matches its sheet',
+  tableThemeById('night').canvasBg === tableThemeById('night').sheetBg,
+)
+check('themes: mono theme is pure grayscale for black-and-white printers',
+  (() => {
+    const mono = tableThemeById('mono')
+    const grays = [
+      mono.sheetBg, mono.sheetText, mono.headerRule, mono.titleText, mono.matBadgeBg,
+      mono.matchAccent, mono.finalAccent, mono.connector, mono.boxBorder,
+      mono.sides.chong.bg, mono.sides.chong.accent, mono.sides.hong.bgSoft, mono.sides.hong.accent,
+    ]
+    const isGray = (hex: string) => {
+      if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return false
+      const r = parseInt(hex.slice(1, 3), 16)
+      const g = parseInt(hex.slice(3, 5), 16)
+      const b = parseInt(hex.slice(5, 7), 16)
+      return r === g && g === b
+    }
+    // دو گوشه باید در چاپ سیاه و سفید از هم جدا بمانند — چونگ تیره تر از هونگ
+    return grays.every(isGray) &&
+      mono.sides.chong.accent !== mono.sides.hong.accent &&
+      parseInt(mono.sides.chong.bgSoft.slice(1, 3), 16) <
+        parseInt(mono.sides.hong.bgSoft.slice(1, 3), 16)
+  })(),
+)
+check('themes: store migration keeps a saved theme and repairs junk',
+  await (async () => {
+    // zustand persist بدون حافظه api.persist را سیم نمی کند — یک حافظه ساده می گذاریم
+    // (پیش فرض زوستاند window.localStorage است، پس هر دو باید باشند)
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const migrated = migrate({ tableThemeId: 'gold' }) as { tableThemeId?: string }
+    const junk = migrate({ tableThemeId: 'junk-theme' }) as { tableThemeId?: string }
+    const empty = migrate({}) as { tableThemeId?: string }
+    return migrated.tableThemeId === 'gold' &&
+      junk.tableThemeId === 'classic' &&
+      empty.tableThemeId === 'classic'
+  })(),
+)
+
+// ————— ظاهر شماره مسابقه (v13) —————
+
+check('match chip: six modes with unique ids, valid shape and fill',
+  matchChipModes.length === 6 &&
+    new Set(matchChipModes.map((mode) => mode.id)).size === 6 &&
+    matchChipModes.every((mode) =>
+      (['circle', 'rounded', 'square'] as const).includes(mode.shape) &&
+      (['solid', 'outline'] as const).includes(mode.fill) &&
+      mode.name.length > 0,
+    ),
+)
+
+check('match chip: radius follows shape — circle full, square near-sharp, rounded in between',
+  matchChipRadius('circle', 24) === 999 &&
+    matchChipRadius('square', 24) <= 4 &&
+    matchChipRadius('rounded', 24) > 4 &&
+    matchChipRadius('rounded', 24) < 12 &&
+    matchChipRadius('rounded', 12) >= 3,
+)
+
+check('match chip: follow-theme keeps final gold and regular navy',
+  matchChipPalette(defaultMatchChipStyle, classicTheme, false).accent === classicTheme.matchAccent &&
+    matchChipPalette(defaultMatchChipStyle, classicTheme, true).accent === classicTheme.finalAccent,
+)
+
+check('match chip: custom color overrides accents for regular and final',
+  (() => {
+    const custom: MatchChipStyle = { shape: 'square', fill: 'solid', color: '#123456' }
+    return matchChipPalette(custom, classicTheme, false).accent === '#123456' &&
+      matchChipPalette(custom, classicTheme, true).accent === '#123456' &&
+      matchChipPalette(custom, classicTheme, false).filledText === '#ffffff'
+  })(),
+)
+
+check('match chip: readable text flips dark on light custom colors',
+  matchChipPalette({ ...defaultMatchChipStyle, color: '#fbbf24' }, classicTheme, false)
+    .filledText !== '#ffffff' &&
+    matchChipPalette({ ...defaultMatchChipStyle, color: '#101d31' }, classicTheme, false)
+      .filledText === '#ffffff',
+)
+
+check('match chip: outline palette keeps theme empty tones for coherence',
+  matchChipPalette({ ...defaultMatchChipStyle, fill: 'outline' }, classicTheme, false)
+    .outlineBg === classicTheme.chipEmptyBg,
+)
+
+check('match chip: normalize repairs junk style to the classic default',
+  normalizeMatchChipStyle(null).shape === 'circle' &&
+    normalizeMatchChipStyle(null).fill === 'solid' &&
+    normalizeMatchChipStyle(null).color === null &&
+    normalizeMatchChipStyle({ shape: 'diamond', fill: 'glow', color: 'red' }).shape === 'circle' &&
+    normalizeMatchChipStyle({ shape: 'diamond', fill: 'glow', color: 'red' }).color === null &&
+    normalizeMatchChipStyle({ shape: 'square', fill: 'outline', color: '#ABCDEF' }).shape === 'square' &&
+    normalizeMatchChipStyle({ shape: 'square', fill: 'outline', color: '#ABCDEF' }).color === '#abcdef',
+)
+
+// ————— اندازه بج شماره (v14) —————
+
+check('match chip size: three ordered options with growing factors',
+  matchChipSizeOptions.length === 3 &&
+    new Set(matchChipSizeOptions.map((option) => option.id)).size === 3 &&
+    matchChipSizeOptions[0].factor === 1 &&
+    matchChipSizeOptions[0].factor < matchChipSizeOptions[1].factor &&
+    matchChipSizeOptions[1].factor < matchChipSizeOptions[2].factor,
+)
+
+check('match chip size: factor lookup and junk normalization',
+  matchChipFactor('normal') === 1 &&
+    matchChipFactor('big') > 1 &&
+    matchChipFactor('huge') > matchChipFactor('big') &&
+    normalizeMatchChipSize('junk') === 'normal' &&
+    normalizeMatchChipSize(null) === 'normal' &&
+    normalizeMatchChipSize('huge') === 'huge',
+)
+
+check('match chip size: store migration keeps a saved size and repairs junk',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const saved = migrate({ matchChipSize: 'huge' }) as { matchChipSize?: MatchChipSize }
+    const junk = migrate({ matchChipSize: 'giant' }) as { matchChipSize?: MatchChipSize }
+    const empty = migrate({}) as { matchChipSize?: MatchChipSize }
+    return saved.matchChipSize === 'huge' &&
+      junk.matchChipSize === 'normal' &&
+      empty.matchChipSize === 'normal'
+  })(),
+)
+
+check('match chip: store migration keeps a saved style and repairs junk',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const saved = migrate({
+      matchChipStyle: { shape: 'square', fill: 'outline', color: '#16a34a' },
+    }) as { matchChipStyle?: MatchChipStyle }
+    const junk = migrate({ matchChipStyle: { shape: 'blob', color: 'junk' } }) as {
+      matchChipStyle?: MatchChipStyle
+    }
+    const empty = migrate({}) as { matchChipStyle?: MatchChipStyle }
+    return saved.matchChipStyle?.shape === 'square' &&
+      saved.matchChipStyle.fill === 'outline' &&
+      saved.matchChipStyle.color === '#16a34a' &&
+      junk.matchChipStyle?.shape === 'circle' &&
+      junk.matchChipStyle.color === null &&
+      empty.matchChipStyle?.color === null
+  })(),
 )
 
 if (failures > 0) {

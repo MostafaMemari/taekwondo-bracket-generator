@@ -1,6 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import type { Participant, SlotOccupant } from '../../core/types.ts'
 import type { SlotSide } from '../../core/bracket/layout.ts'
+import type { BarSide } from './SlotRows.tsx'
 import { ParticipantChip } from './ParticipantChip.tsx'
 import { EmptySlotRow, ByeRow, PositionRow } from './SlotRows.tsx'
 import { ManualSlotEditor } from './ManualSlotEditor.tsx'
@@ -21,6 +22,8 @@ interface SlotCardProps {
   nameFontSize?: number
   coachFontSize?: number
   showCoach?: boolean
+  /** لبه نوار رنگی — نیمه چپ برگه «چپ» می گیرد */
+  barSide?: BarSide
   /** جدول دستی: کلیک روی خانه، ورودی نام/مربی را باز می کند */
   manualEdit?: ManualEditProps
 }
@@ -33,6 +36,7 @@ export function SlotCard({
   nameFontSize,
   coachFontSize,
   showCoach,
+  barSide,
   manualEdit,
 }: SlotCardProps) {
   // rest slots («استراحت») are structural — nothing can be dropped on them
@@ -75,6 +79,7 @@ export function SlotCard({
           nameFontSize={nameFontSize}
           coachFontSize={coachFontSize}
           showCoach={showCoach}
+          barSide={barSide}
           onEditStart={manualEdit?.onStart}
         />
       )

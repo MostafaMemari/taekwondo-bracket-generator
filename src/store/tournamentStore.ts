@@ -8,6 +8,15 @@ import { groupByCategory } from '../core/grouping/groupByCategory.ts'
 import { type ScheduleMat, type ScheduleSession } from '../core/schedule/schedule.ts'
 import { createId } from '../core/id.ts'
 import { toEnDigits, toFaDigits, SHEET_TITLE_DEFAULT_FORMAT } from '../lib/formatFa.ts'
+import {
+  defaultMatchChipStyle,
+  defaultMatchChipSize,
+  normalizeMatchChipSize,
+  normalizeMatchChipStyle,
+  type MatchChipSize,
+  type MatchChipStyle,
+} from '../lib/matchChipStyles.ts'
+import { isTableThemeId, type TableThemeId } from '../lib/tableThemes.ts'
 import type {
   CategoryGroup,
   GroupDraw,
@@ -131,6 +140,11 @@ interface TournamentState {
   manualTables: Record<string, ManualTableInfo>
   /** جدول های باران مدال — کلید = شناسه گروه هر جدول */
   medalRainTables: Record<string, MedalRainPoolInfo>
+  /**
+   * کمربند دستی هر جدول — مثلا «سبز و آبی» — برای همه انواع جدول (اکسل،
+   * دستی، باران مدال) و به شکل یک بج کوچک کنار عنوان وزن روی سربرگ برگه.
+   */
+  tableBeltLabels: Record<string, string>
 
   importRoster: (fileName: string, roster: ParsedRoster) => void
   clearAll: () => void
@@ -196,6 +210,26 @@ interface TournamentState {
   updateMedalRainInfo: (groupId: string, patch: Partial<Pick<MedalRainPoolInfo, 'matLabel' | 'attendTime'>>) => void
   /** حذف کامل یک جدول باران مدال با شرکت کننده هایش */
   removeMedalRainTable: (groupId: string) => void
+  /**
+   * کمربند دستی یک جدول — کاربر خودش تایپ می کند (مثلا «سبز و آبی»)؛ مقدار
+   * خالی یعنی پاک کردن. روی سربرگ برگه چاپ/عکس به شکل بج کوچک می نشیند.
+   */
+  setTableBeltLabel: (groupId: string, value: string) => void
+  /** تم بصری جدول ها — فقط ظاهر برگه ها عوض می شود، از تنظیمات */
+  tableThemeId: TableThemeId
+  setTableThemeId: (id: TableThemeId) => void
+  /**
+   * ظاهر بج شماره مسابقه — شکل (دایره/مربع گرد/مربع)، پر یا توخالی و رنگ دلخواه؛
+   * انتخاب شخصی است و با importRoster/clearAll عوض نمی شود.
+   */
+  matchChipStyle: MatchChipStyle
+  setMatchChipStyle: (style: MatchChipStyle) => void
+  /**
+   * اندازه بج شماره مسابقه — معمولی/درشت/خیلی درشت؛ انتخاب شخصی است و با
+   * importRoster/clearAll عوض نمی شود.
+   */
+  matchChipSize: MatchChipSize
+  setMatchChipSize: (size: MatchChipSize) => void
 }
 
 const historyLimit = 40
@@ -227,6 +261,17 @@ export const useTournament = create<TournamentState>()(
       scheduleSessions: [],
       manualTables: {},
       medalRainTables: {},
+      tableBeltLabels: {},
+      // تم ظاهری یک انتخاب شخصی است — با ورود فهرست جدید عوض نمی شود
+      tableThemeId: 'classic' as TableThemeId,
+
+      setTableThemeId: (id) => set({ tableThemeId: id }),
+      // ظاهر شماره هم انتخاب شخصی است — با ورود فهرست جدید دست نمی خورد
+      matchChipStyle: defaultMatchChipStyle,
+      setMatchChipStyle: (style) => set({ matchChipStyle: normalizeMatchChipStyle(style) }),
+      // اندازه شماره هم انتخاب شخصی است
+      matchChipSize: defaultMatchChipSize,
+      setMatchChipSize: (size) => set({ matchChipSize: normalizeMatchChipSize(size) }),
 
       importRoster: (fileName, roster) =>
         set({
@@ -243,6 +288,7 @@ export const useTournament = create<TournamentState>()(
           scheduleSessions: [],
           manualTables: {},
           medalRainTables: {},
+          tableBeltLabels: {},
         }),
 
       clearAll: () =>
@@ -259,6 +305,7 @@ export const useTournament = create<TournamentState>()(
           scheduleSessions: [],
           manualTables: {},
           medalRainTables: {},
+          tableBeltLabels: {},
         }),
 
       openGroups: () => set({ page: 'groups' }),
@@ -681,6 +728,14 @@ export const useTournament = create<TournamentState>()(
         })
       },
 
+      setTableBeltLabel: (groupId, value) => {
+        const text = value.trim()
+        const next = { ...get().tableBeltLabels }
+        if (text) next[groupId] = text
+        else delete next[groupId]
+        set({ tableBeltLabels: next })
+      },
+
       removeMedalRainTable: (groupId) => {
         const info = get().medalRainTables[groupId]
         if (!info) return
@@ -704,7 +759,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 10,
+      version: 14,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -717,6 +772,10 @@ export const useTournament = create<TournamentState>()(
         // v9: باران مدال — جدول ها و مسابقه رده بندی شان بعد از بازسازی قرعه برمی گردند
         // v10: قالب عنوان وزن ها — ذخیره های قدیمی پیش فرض را می گیرند
         //      (meta در پایین با defaultMeta ادغام می شود)
+        // v11: کمربند دستی هر جدول — ذخیره های قدیمی خالی شروع می کنند
+        //      v12: تم جدول ها — ذخیره های قدیمی کلاسیک شروع می کنند
+        //      v13: ظاهر شماره مسابقه — ذخیره های قدیمی دایره پر همراه تم
+        //      v14: اندازه بج شماره — ذخیره های قدیمی معمولی
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -753,6 +812,13 @@ export const useTournament = create<TournamentState>()(
               ? state.manualTables
               : {},
           medalRainTables,
+          tableBeltLabels:
+            state.tableBeltLabels && typeof state.tableBeltLabels === 'object'
+              ? state.tableBeltLabels
+              : {},
+          tableThemeId: isTableThemeId(state.tableThemeId) ? state.tableThemeId : 'classic',
+          matchChipStyle: normalizeMatchChipStyle(state.matchChipStyle),
+          matchChipSize: normalizeMatchChipSize(state.matchChipSize),
         }
       },
       partialize: (state) => ({
@@ -768,6 +834,10 @@ export const useTournament = create<TournamentState>()(
         scheduleSessions: state.scheduleSessions,
         manualTables: state.manualTables,
         medalRainTables: state.medalRainTables,
+        tableBeltLabels: state.tableBeltLabels,
+        tableThemeId: state.tableThemeId,
+        matchChipStyle: state.matchChipStyle,
+        matchChipSize: state.matchChipSize,
       }),
     },
   ),

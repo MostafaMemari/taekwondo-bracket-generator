@@ -14,9 +14,12 @@ export const A4_PORTRAIT = { widthMm: 210, heightMm: 297, marginMm: 8 }
 export const A4_LANDSCAPE = { widthMm: 297, heightMm: 210, marginMm: 6 }
 
 /** rasterize one sheet element into a ready-to-place page bitmap */
-export async function rasterizePage(element: HTMLElement): Promise<Blob> {
+export async function rasterizePage(
+  element: HTMLElement,
+  backgroundColor = '#ffffff',
+): Promise<Blob> {
   await nextFrame()
-  const blob = await rasterizeElement(element)
+  const blob = await rasterizeElement(element, backgroundColor)
   if (!blob) throw new Error('rasterization produced no blob')
   return blob
 }
