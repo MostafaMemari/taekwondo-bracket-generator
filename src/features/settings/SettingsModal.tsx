@@ -9,9 +9,14 @@ import {
 } from '../../lib/formatFa.ts'
 import {
   classicTheme,
+  tableThemeById,
   tableThemes,
   type TableTheme,
 } from '../../lib/tableThemes.ts'
+import {
+  sheetLayouts,
+  type SheetLayoutId,
+} from '../../lib/sheetLayouts.ts'
 import {
   defaultMatchChipSize,
   defaultMatchChipStyle,
@@ -67,16 +72,18 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const matchChipStyle = useTournament((state) => state.matchChipStyle)
   const matchChipSize = useTournament((state) => state.matchChipSize)
   const showChampion = useTournament((state) => state.showChampion)
+  const sheetLayout = useTournament((state) => state.sheetLayout)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
       initialChipSize={matchChipSize}
       initialShowChampion={showChampion}
+      initialSheetLayout={sheetLayout}
       onClose={onClose}
     />
   )
@@ -88,6 +95,7 @@ function SettingsForm({
   initialChipStyle,
   initialChipSize,
   initialShowChampion,
+  initialSheetLayout,
   onClose,
 }: {
   initial: TournamentMeta
@@ -95,6 +103,7 @@ function SettingsForm({
   initialChipStyle: ReturnType<typeof useTournament.getState>['matchChipStyle']
   initialChipSize: ReturnType<typeof useTournament.getState>['matchChipSize']
   initialShowChampion: boolean
+  initialSheetLayout: ReturnType<typeof useTournament.getState>['sheetLayout']
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
@@ -102,6 +111,7 @@ function SettingsForm({
   const setMatchChipStyle = useTournament((state) => state.setMatchChipStyle)
   const setMatchChipSize = useTournament((state) => state.setMatchChipSize)
   const setShowChampion = useTournament((state) => state.setShowChampion)
+  const setSheetLayout = useTournament((state) => state.setSheetLayout)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
@@ -110,6 +120,7 @@ function SettingsForm({
   const [chipStyle, setChipStyle] = useState<MatchChipStyle>(initialChipStyle)
   const [chipSize, setChipSize] = useState<MatchChipSize>(normalizeMatchChipSize(initialChipSize))
   const [championVisible, setChampionVisible] = useState(initialShowChampion)
+  const [sheetLayoutId, setLayoutId] = useState<SheetLayoutId>(initialSheetLayout)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -137,6 +148,7 @@ function SettingsForm({
     setMatchChipStyle(chipStyle)
     setMatchChipSize(chipSize)
     setShowChampion(championVisible)
+    setSheetLayout(sheetLayoutId)
     onClose()
   }
 
@@ -274,6 +286,28 @@ function SettingsForm({
                 }}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              طرح برگه
+              <span className="ms-2 text-xs font-normal text-muted">ساختار سربرگ و جدول عوض می شود — تم های رنگی روی هر دو طرح می نشینند</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2.5">
+              {sheetLayouts.map((layout) => (
+                <SheetLayoutCard
+                  key={layout.id}
+                  layout={layout}
+                  theme={tableThemeById(tableThemeId)}
+                  selected={layout.id === sheetLayoutId}
+                  onSelect={() => setLayoutId(layout.id)}
+                />
+              ))}
+            </div>
+            <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+              طرح، شکل سربرگ و جدول را عوض می کند و تم، رنگ هایش را — طرح مدرن هم
+              همه رنگ هایش را از همان تم می گیرد؛ ماکت ها با تم انتخابی همین لحظه رنگ می گیرند.
+            </p>
           </div>
 
           <div>
@@ -677,6 +711,131 @@ function MatchChipSizeCard({
         <span className="text-xs font-bold text-ink-900">{option.name}</span>
         {selected && <Check size={13} className="shrink-0 text-mat-600" />}
       </div>
+    </button>
+  )
+}
+
+/**
+ * کارت انتخاب طرح برگه — ماکت کوچک از سربرگ و دو ردیف با خود ساختار طرح
+ * (کلاسیک: خط زیر سربرگ و نوار کنار ردیف — مدرن: ریبون بالا، عنوان دو طرف
+ * خط، پیل ها و نوار روی ردیف) با رنگ های تم فعلی؛ انتخاب با ذخیره اعمال می شود.
+ */
+function SheetLayoutCard({
+  layout,
+  theme,
+  selected,
+  onSelect,
+}: {
+  layout: (typeof sheetLayouts)[number]
+  theme: TableTheme
+  selected: boolean
+  onSelect: () => void
+}) {
+  const modern = layout.id === 'modern'
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div
+        className="overflow-hidden rounded-lg border border-line"
+        style={{ backgroundColor: theme.sheetBg }}
+      >
+        {/* ریبون امضای طرح مدرن */}
+        {modern && (
+          <div aria-hidden style={{ height: 3, backgroundColor: theme.matBadgeBg }} />
+        )}
+        {/* سربرگ ماکت */}
+        <div
+          className="flex items-center gap-1 px-1.5 py-1"
+          style={{
+            borderBottom: modern ? undefined : `1.5px solid ${theme.headerRule}`,
+            backgroundColor: modern ? theme.sheetBg : undefined,
+          }}
+        >
+          {modern && (
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-sm"
+              style={{ border: `1px solid ${theme.chipBorder}`, backgroundColor: theme.chipBg }}
+            />
+          )}
+          <span
+            aria-hidden
+            className="mx-auto h-1 rounded-full"
+            style={{
+              width: modern ? '46%' : '50%',
+              backgroundColor: theme.titleText,
+              opacity: 0.85,
+              boxShadow: modern
+                ? `-6px 0 0 -3px ${theme.headerRule}66, 6px 0 0 -3px ${theme.headerRule}66`
+                : undefined,
+            }}
+          />
+          {modern ? (
+            <span
+              aria-hidden
+              className="h-2 w-4 shrink-0 rounded-full"
+              style={{ backgroundColor: theme.matBadgeBg }}
+            />
+          ) : (
+            <span
+              aria-hidden
+              className="h-2.5 w-3.5 shrink-0 rounded-sm"
+              style={{ border: `1px solid ${theme.statBorder}` }}
+            />
+          )}
+        </div>
+        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: نوار لبه بالا + خط دور */}
+        <div className="space-y-1 p-1.5">
+          {(['chong', 'hong'] as const).map((side) => (
+            <div
+              key={side}
+              className="flex h-3 items-center overflow-hidden rounded"
+              style={{
+                backgroundColor: theme.sides[side].bgSoft,
+                ...(modern
+                  ? {
+                      borderTop: `2px solid ${theme.sides[side].accent}`,
+                      borderInline: `1px solid ${theme.sides[side].borderSoft}`,
+                      borderBottom: `1px solid ${theme.sides[side].borderSoft}`,
+                    }
+                  : {}),
+              }}
+            >
+              {!modern && (
+                <span
+                  aria-hidden
+                  className="h-full w-[3px] shrink-0"
+                  style={{ backgroundColor: theme.sides[side].accent }}
+                />
+              )}
+              <span
+                aria-hidden
+                className="my-auto h-[3px] w-2/3 rounded-full"
+                style={{
+                  backgroundColor: theme.nameText,
+                  opacity: 0.7,
+                  marginInline: 4,
+                  marginInlineStart: modern ? 'auto' : undefined,
+                  marginInlineEnd: modern ? 'auto' : undefined,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{layout.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+      <p className="mt-0.5 text-[10px] leading-4 text-muted">{layout.hint}</p>
     </button>
   )
 }

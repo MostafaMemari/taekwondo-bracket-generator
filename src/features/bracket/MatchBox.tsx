@@ -3,6 +3,7 @@ import type { LayoutMatch, LayoutDims, PlanLeaf, SlotSide } from '../../core/bra
 import { BRONZE_HEADER_HEIGHT } from '../../core/bracket/layout.ts'
 import { LoserRow, PositionRow } from './SlotRows.tsx'
 import { useTableTheme } from '../../lib/tableThemeContext.ts'
+import type { SheetLayoutId } from '../../lib/sheetLayouts.ts'
 
 interface MatchBoxProps {
   match: LayoutMatch
@@ -10,6 +11,8 @@ interface MatchBoxProps {
   dims: LayoutDims
   /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام)؛ مسابقه هم پاس می آید تا برگه تعاملی همسایه اسلات را بشناسد */
   renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
+  /** طرح جعبه — کلاسیک (پیش فرض) یا مدرن: گوشه گردتر و سایه لطیف */
+  design?: SheetLayoutId
 }
 
 /**
@@ -20,16 +23,25 @@ interface MatchBoxProps {
  * are solid badges anchored to the box edges by the layout, not drawn here.
  * خط و پس زمینه از تم جدول می آید — برگه تم انتخابی، بوم قرعه رنگ کلاسیک.
  */
-export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps) {
+export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classic' }: MatchBoxProps) {
   const theme = useTableTheme()
+  // مدرن: گوشه های گردتر + سایه خیلی لطیف — جعبه ها از کاغذ جدا دیده می شوند
+  const modern = design === 'modern'
+  const boxRadius = modern ? 12 : 8
+  const modernShadow = modern ? '0 1px 3px rgba(15, 31, 56, 0.1)' : undefined
 
   // مسابقه رده بندی باران مدال — سرتیتر «رده بندی» و دو ردیف «بازنده مسابقه N»
   if (match.bronze) {
     return (
       <div
         dir="ltr"
-        className="relative h-full w-full rounded-[8px]"
-        style={{ border: `1.5px solid ${theme.bronzeBorder}`, backgroundColor: theme.boxBg }}
+        className="relative h-full w-full"
+        style={{
+          borderRadius: boxRadius,
+          border: `1.5px solid ${theme.bronzeBorder}`,
+          backgroundColor: theme.boxBg,
+          boxShadow: modernShadow,
+        }}
       >
         <div
           dir="rtl"
@@ -97,8 +109,13 @@ export function MatchBox({ match, roundCount, dims, renderLeaf }: MatchBoxProps)
   return (
     <div
       dir="ltr"
-      className="relative h-full w-full rounded-[8px]"
-      style={{ border, backgroundColor: theme.boxBg }}
+      className="relative h-full w-full"
+      style={{
+        borderRadius: boxRadius,
+        border,
+        backgroundColor: theme.boxBg,
+        boxShadow: modernShadow,
+      }}
     >
       {rows.map((row) => (
         <div

@@ -4,6 +4,7 @@ import type { SlotSide } from '../../core/bracket/layout.ts'
 import { FitText } from '../../components/FitText.tsx'
 import { toFaDigits } from '../../lib/formatFa.ts'
 import { useTableTheme } from '../../lib/tableThemeContext.ts'
+import type { SheetLayoutId } from '../../lib/sheetLayouts.ts'
 
 /**
  * Presentational slot rows shared by the interactive canvas and the print
@@ -25,6 +26,13 @@ import { useTableTheme } from '../../lib/tableThemeContext.ts'
  */
 export type BarSide = 'right' | 'left'
 
+/**
+ * طرح ردیف — کلاسیک: نوار رنگی روی لبه بیرونی (آینه ای)؛ مدرن: نوار رنگی لبه
+ * بالای کارت (آینه بی معناست چون نوار سراسری است) + خط نرم دور کارت. پیش فرض
+ * کلاسیک تا بوم قرعه و همه مصرف کننده های قدیمی دست نخورده بمانند.
+ */
+export type RowDesign = SheetLayoutId
+
 interface AthleteRowProps {
   participant: Participant
   side: SlotSide
@@ -32,8 +40,10 @@ interface AthleteRowProps {
   /** خط مربی — پیش فرض با اندازه فونت سازگار است؛ برگه چاپ از fitPrintDims می فرستد */
   showCoach?: boolean
   coachFontSize?: number
-  /** لبه نوار رنگی — نیمه چپ برگه «چپ» می گیرد (پیش فرض راست) */
+  /** لبه نوار رنگی — نیمه چپ برگه «چپ» می گیرد (پیش فرض راست)؛ فقط طرح کلاسیک */
   barSide?: BarSide
+  /** طرح ردیف — کلاسیک (پیش فرض) یا مدرن */
+  design?: RowDesign
 }
 
 export function AthleteRow({
@@ -43,6 +53,7 @@ export function AthleteRow({
   showCoach,
   coachFontSize,
   barSide = 'right',
+  design = 'classic',
 }: AthleteRowProps) {
   const theme = useTableTheme()
   const sideColors = theme.sides[side]
@@ -50,6 +61,47 @@ export function AthleteRow({
   const coachVisible =
     (showCoach ?? nameFontSize >= 11) && participant.coachName.trim().length > 0
   const subSize = coachFontSize ?? Math.max(8.5, nameFontSize - 4.5)
+
+  // طرح مدرن — کارت با نوار رنگی لبه بالا و خط نرم دور؛ نام/مربی همان وسط چین
+  if (design === 'modern') {
+    return (
+      <div
+        dir="rtl"
+        className="flex h-full w-full flex-col overflow-hidden rounded-md"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        <div className="flex min-h-0 w-full flex-1 flex-col items-stretch justify-center gap-0.5 px-1.5">
+          <FitText
+            text={participant.fullName}
+            baseSize={nameFontSize}
+            minSize={coachVisible ? 5.5 : 7}
+            twoLine={!coachVisible}
+            align="center"
+            className="font-bold leading-tight"
+            style={{ color: theme.nameText }}
+          />
+          {coachVisible && (
+            <FitText
+              text={participant.coachName}
+              baseSize={subSize}
+              minSize={6.5}
+              twoLine={false}
+              align="center"
+              className="font-medium"
+              style={{ lineHeight: 1.25, color: theme.coachText }}
+              title={`مربی: ${participant.coachName}`}
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const bar = (
     <span
       aria-hidden
@@ -172,22 +224,22 @@ export function PositionRow({ side, emphasis = false }: { side: SlotSide; emphas
 /**
  * جایگاه «برنده مسابقه N» — روی صفحه پایانیِ برگه های چند صفحه ای، جایی که
  * مسابقه های دور قبل روی صفحات نوار چیده شده اند. شماره از خود ساختار درخت
- * می آید و با رقم فارسی نشان داده می شود؛ نوارش هم مثل ردیف ها آینه می شود.
+ * می آید و با رقم فارسی نشان داده می شود؛ در طرح کلاسیک نوارش مثل ردیف ها
+ * آینه می شود و در طرح مدرن نوار رنگی لبه بالا می گیرد.
  */
 export function WinnerRow({
   matchNumber,
   side,
   barSide = 'right',
+  design = 'classic',
 }: {
   matchNumber: number
   side: SlotSide
   barSide?: BarSide
+  design?: RowDesign
 }) {
   const theme = useTableTheme()
   const sideColors = theme.sides[side]
-  const bar = (
-    <span aria-hidden className="shrink-0" style={{ width: 4.5, backgroundColor: sideColors.accent }} />
-  )
   const label = (
     <FitText
       text={matchNumber > 0 ? `برنده مسابقه ${toFaDigits(matchNumber)}` : 'برنده دور قبل'}
@@ -197,6 +249,25 @@ export function WinnerRow({
       className="font-bold"
       style={{ color: sideColors.accent }}
     />
+  )
+  if (design === 'modern') {
+    return (
+      <div
+        dir="rtl"
+        className="flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        {label}
+      </div>
+    )
+  }
+  const bar = (
+    <span aria-hidden className="shrink-0" style={{ width: 4.5, backgroundColor: sideColors.accent }} />
   )
   return (
     <div
@@ -221,22 +292,22 @@ export function WinnerRow({
 
 /**
  * جایگاه «بازنده مسابقه N» — دو گوشه مسابقه رده بندی باران مدال، جایی که
- * بازنده های دو نیمه نهایی برای مدال برنز به هم می رسند؛ نوار آینه مثل بقیه.
+ * بازنده های دو نیمه نهایی برای مدال برنز به هم می رسند؛ مثل بقیه ردیف ها:
+ * نوار آینه در کلاسیک، نوار لبه بالا در مدرن.
  */
 export function LoserRow({
   matchNumber,
   side,
   barSide = 'right',
+  design = 'classic',
 }: {
   matchNumber: number
   side: SlotSide
   barSide?: BarSide
+  design?: RowDesign
 }) {
   const theme = useTableTheme()
   const sideColors = theme.sides[side]
-  const bar = (
-    <span aria-hidden className="shrink-0" style={{ width: 4.5, backgroundColor: sideColors.accent }} />
-  )
   const label = (
     <FitText
       text={matchNumber > 0 ? `بازنده مسابقه ${toFaDigits(matchNumber)}` : 'بازنده دور قبل'}
@@ -246,6 +317,25 @@ export function LoserRow({
       className="font-bold"
       style={{ color: sideColors.accent }}
     />
+  )
+  if (design === 'modern') {
+    return (
+      <div
+        dir="rtl"
+        className="flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
+        style={{
+          backgroundColor: sideColors.bgSoft,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
+        }}
+      >
+        {label}
+      </div>
+    )
+  }
+  const bar = (
+    <span aria-hidden className="shrink-0" style={{ width: 4.5, backgroundColor: sideColors.accent }} />
   )
   return (
     <div

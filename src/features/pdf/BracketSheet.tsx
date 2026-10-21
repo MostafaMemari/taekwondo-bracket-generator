@@ -44,6 +44,7 @@ import {
   matchNumberTooltip,
   useMatchNumberField,
 } from "../bracket/matchNumberField.ts";
+import type { SheetLayoutId } from "../../lib/sheetLayouts.ts";
 
 /** A4 landscape at 96 dpi */
 export const sheetWidth = 1120;
@@ -128,6 +129,9 @@ export function BracketSheet({
   const chipScale = matchChipFactor(matchChipSize);
   // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
   const showChampion = useTournament((state) => state.showChampion);
+  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ ریبون دار و ردیف های نوار بالا)
+  const sheetLayout = useTournament((state) => state.sheetLayout);
+  const modern = sheetLayout === "modern";
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
   const withResults = variant === "print" && draw.structure.roundCount > 0;
   // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر
@@ -160,7 +164,14 @@ export function BracketSheet({
     barSide?: "left" | "right",
   ) {
     if (leaf?.kind === "winner")
-      return <WinnerRow matchNumber={leaf.matchNumber} side={side} barSide={barSide} />;
+      return (
+        <WinnerRow
+          matchNumber={leaf.matchNumber}
+          side={side}
+          barSide={barSide}
+          design={sheetLayout}
+        />
+      );
     if (leaf?.kind !== "slot") return <PositionRow side={side} />;
     const occupant = draw.assignments[leaf.slotId];
     if (occupant.kind === "bye") {
@@ -194,6 +205,7 @@ export function BracketSheet({
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
         barSide={barSide}
+        design={sheetLayout}
       />
     );
     if (!interactiveSwaps) return row;
@@ -211,6 +223,257 @@ export function BracketSheet({
   }
 
   function renderHeader() {
+    return modern ? renderModernHeader() : renderClassicHeader();
+  }
+
+  /** سربرگ طرح مدرن — ریبون رنگی لبه بالا (خود ریبون در بدنه برگه است)،
+   *  لوگوی کاشی دار، عنوان با خط تزئینی دو طرف، همه بج ها پیل، و آمار به
+   *  شکل سه پیل عمودی — همه رنگ ها از همان تم جدول می آید */
+  function renderModernHeader() {
+    const participantCount = draw.group.participantIds.length;
+    const restCount = draw.structure.restSlotIds.length;
+    const title = meta.title || "قرعه کشی مسابقات تکواندو";
+
+    const pill: React.CSSProperties = {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      borderRadius: 999,
+      backgroundColor: theme.chipBg,
+      border: `1.5px solid ${theme.chipBorder}`,
+      color: theme.chipText,
+      padding: "3px 14px 4.5px",
+      fontSize: 14,
+      fontWeight: 700,
+      whiteSpace: "nowrap",
+      flexShrink: 0,
+    };
+
+    return (
+      <header
+        style={{
+          height: headerHeight,
+          flexShrink: 0,
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
+          alignItems: "center",
+          gap: 18,
+          padding: `8px ${SHEET_PAD_X}px 10px`,
+        }}
+      >
+        {/* راست: لوگوی کاشی دار — کادر گرد با پس زمینه تم */}
+        <div style={{ justifySelf: "start", minWidth: 0 }}>
+          {meta.logoDataUrl && (
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 16,
+                backgroundColor: theme.chipBg,
+                border: `1.5px solid ${theme.chipBorder}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(15, 31, 56, 0.12)",
+              }}
+            >
+              <img
+                src={meta.logoDataUrl}
+                alt=""
+                style={{ maxWidth: 64, maxHeight: 64, objectFit: "contain" }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* وسط: عنوان با خط تزئینی دو طرف + همه بج ها در یک ردیف پیل */}
+        <div
+          style={{
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              width: "100%",
+              maxWidth: 660,
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                flex: 1,
+                height: 2,
+                borderRadius: 999,
+                background: `linear-gradient(to left, ${theme.headerRule}, transparent)`,
+              }}
+            />
+            <h1
+              style={{
+                fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                fontSize: meta.title ? 30 : 26,
+                lineHeight: 1.2,
+                margin: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                textAlign: "center",
+                color: theme.titleText,
+              }}
+            >
+              {title}
+            </h1>
+            <span
+              aria-hidden
+              style={{
+                flex: 1,
+                height: 2,
+                borderRadius: 999,
+                background: `linear-gradient(to right, ${theme.headerRule}, transparent)`,
+              }}
+            />
+          </div>
+          {meta.subtitle && (
+            <p
+              style={{
+                fontSize: 12.5,
+                color: theme.subtitleText,
+                margin: 0,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                textAlign: "center",
+                maxWidth: 660,
+              }}
+            >
+              {meta.subtitle}
+            </p>
+          )}
+          {/* همه بج ها یک ردیف — وزن، کمربند، زمین و ساعت همه پیل */}
+          <p
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              margin: "2px 0 0",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+            }}
+          >
+            <span style={pill}>
+              {renderWeightTitle(meta.sheetTitleFormat, {
+                ageCategory: draw.group.ageCategory,
+                weightCategory: draw.group.weightCategory,
+                tournamentTitle: meta.title,
+              })}
+            </span>
+            {beltLabel && <span style={pill}>کمربند {beltLabel}</span>}
+            {matLabel && (
+              <span
+                style={{
+                  ...pill,
+                  fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                  fontSize: 17,
+                  fontWeight: 400,
+                  letterSpacing: 0.5,
+                  color: theme.matBadgeText,
+                  backgroundColor: theme.matBadgeBg,
+                  border: `1.5px solid ${theme.matBadgeBg}`,
+                  padding: "3px 18px 5.5px",
+                }}
+              >
+                {matLabel}
+              </span>
+            )}
+            {attendTime && (
+              <span
+                style={{
+                  ...pill,
+                  fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                  fontSize: 17,
+                  fontWeight: 400,
+                  letterSpacing: 0.5,
+                  color: theme.timeBadgeText,
+                  backgroundColor: theme.timeBadgeBg,
+                  border: `2px solid ${theme.timeBadgeBorder}`,
+                  padding: "2px 18px 4.5px",
+                }}
+              >
+                ساعت {toFaDigits(attendTime)}
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* چپ: آمار به شکل سه پیل عمودی */}
+        <div
+          style={{
+            justifySelf: "end",
+            flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "stretch",
+            gap: 4,
+          }}
+        >
+          {(
+            [
+              { label: "شرکت کننده", value: participantCount },
+              { label: "مسابقه", value: realMatchCount(draw) },
+              { label: "استراحت", value: restCount },
+            ] as const
+          ).map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                borderRadius: 999,
+                border: `1.5px solid ${theme.statBorder}`,
+                backgroundColor: theme.chipBg,
+                padding: "2px 12px 3.5px",
+                minWidth: 118,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: theme.statLabel,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {stat.label}
+              </span>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: theme.titleText,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {toFaDigits(stat.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </header>
+    );
+  }
+
+  function renderClassicHeader() {
     const participantCount = draw.group.participantIds.length;
     const restCount = draw.structure.restSlotIds.length;
     const title = meta.title || "قرعه کشی مسابقات تکواندو";
@@ -424,6 +687,7 @@ export function BracketSheet({
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                strokeDasharray={modern ? "7 5" : undefined}
               />
             ))}
           </svg>
@@ -440,14 +704,37 @@ export function BracketSheet({
                 transform: "translateX(-50%)",
               }}
             >
-              <FitText
-                text={roundLabel(column.round, draw.structure.roundCount)}
-                baseSize={12.5}
-                minSize={8}
-                align="center"
-                className="font-bold"
-                style={{ color: theme.roundLabel }}
-              />
+              {modern ? (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    maxWidth: "100%",
+                    borderRadius: 999,
+                    backgroundColor: theme.chipBg,
+                    border: `1.5px solid ${theme.chipBorder}`,
+                    padding: "2.5px 10px 4px",
+                  }}
+                >
+                  <FitText
+                    text={roundLabel(column.round, draw.structure.roundCount)}
+                    baseSize={11.5}
+                    minSize={7.5}
+                    align="center"
+                    className="font-bold"
+                    style={{ color: theme.roundLabel }}
+                  />
+                </div>
+              ) : (
+                <FitText
+                  text={roundLabel(column.round, draw.structure.roundCount)}
+                  baseSize={12.5}
+                  minSize={8}
+                  align="center"
+                  className="font-bold"
+                  style={{ color: theme.roundLabel }}
+                />
+              )}
             </div>
           ))}
 
@@ -466,6 +753,7 @@ export function BracketSheet({
                 match={match}
                 roundCount={draw.structure.roundCount}
                 dims={dims}
+                design={sheetLayout}
                 renderLeaf={(leaf, side) =>
                   renderLeaf(leaf, side, dims, match, barSideForMatch(match, layout.width))
                 }
@@ -486,12 +774,14 @@ export function BracketSheet({
                 alignItems: "center",
                 justifyContent: "center",
                 background: `linear-gradient(135deg, ${theme.championFrom}, ${theme.championTo})`,
-                borderRadius: 10,
+                borderRadius: modern ? 999 : 10,
                 color: theme.championText,
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: 22,
-                letterSpacing: 1.5,
-                boxShadow: theme.championShadow,
+                fontSize: modern ? 20 : 22,
+                letterSpacing: modern ? 3 : 1.5,
+                boxShadow: modern
+                  ? `inset 0 0 0 2.5px rgba(255, 255, 255, 0.4), ${theme.championShadow}`
+                  : theme.championShadow,
               }}
             >
               قهرمان
@@ -591,9 +881,20 @@ export function BracketSheet({
 
   function renderResults() {
     return withResults ? (
-      <ResultsTable withBronze={Boolean(draw.structure.bronzeMatch)} />
+      <ResultsTable
+        withBronze={Boolean(draw.structure.bronzeMatch)}
+        design={sheetLayout}
+      />
     ) : null;
   }
+
+  // ریبون رنگی لبه بالای برگه مدرن — امضای بصری طرح جدید؛ در کلاسیک هیچ است
+  const topRibbon = modern ? (
+    <div
+      aria-hidden
+      style={{ height: 6, flexShrink: 0, backgroundColor: theme.matBadgeBg }}
+    />
+  ) : null;
 
   const sheetStyle: React.CSSProperties = {
     width: sheetWidth,
@@ -617,10 +918,12 @@ export function BracketSheet({
       <TableThemeScope theme={theme}>
         <div
           id={`pdf-sheet-${index}`}
+          data-sheet-layout={sheetLayout}
           className={`print-sheet print-page ${variant === "print" ? "shadow-2xl" : ""}`}
           dir="rtl"
           style={{ ...sheetStyle, height: pageHeight }}
         >
+          {topRibbon}
           {isSolo ? (
             <main
               style={{
@@ -673,9 +976,11 @@ export function BracketSheet({
         return (
           <div
             key={page}
+            data-sheet-layout={sheetLayout}
             className={`print-page pdf-page ${variant === "print" ? "shadow-2xl" : ""}`}
             style={{ ...sheetStyle, height: pageHeight }}
           >
+            {topRibbon}
             {isFirst ? (
               renderHeader()
             ) : (
@@ -685,6 +990,7 @@ export function BracketSheet({
                 note={note}
                 page={page}
                 total={plans.length}
+                design={sheetLayout}
               />
             )}
             <main
@@ -700,7 +1006,12 @@ export function BracketSheet({
               }}
             >
               {renderBand(layout, dims)}
-              {showResults && <ResultsTable withBronze={Boolean(draw.structure.bronzeMatch)} />}
+              {showResults && (
+                <ResultsTable
+                  withBronze={Boolean(draw.structure.bronzeMatch)}
+                  design={sheetLayout}
+                />
+              )}
             </main>
           </div>
         );
@@ -717,14 +1028,17 @@ function ContinuationHeader({
   note,
   page,
   total,
+  design = "classic",
 }: {
   draw: GroupDraw;
   meta: TournamentMeta;
   note: string;
   page: number;
   total: number;
+  design?: SheetLayoutId;
 }) {
   const theme = useTableTheme();
+  const modern = design === "modern";
   return (
     <div
       dir="rtl"
@@ -736,7 +1050,8 @@ function ContinuationHeader({
         justifyContent: "space-between",
         gap: 12,
         padding: `0 ${SHEET_PAD_X}px`,
-        borderBottom: `1.5px solid ${theme.contRule}`,
+        borderBottom: modern ? `2px solid ${theme.headerRule}` : `1.5px solid ${theme.contRule}`,
+        backgroundColor: modern ? theme.chipBg : undefined,
       }}
     >
       <span
@@ -758,9 +1073,29 @@ function ContinuationHeader({
         })}
         <span style={{ fontSize: 10.5, fontWeight: 500, color: theme.contMuted }}>— {note}</span>
       </span>
-      <span style={{ fontSize: 10.5, color: theme.contMuted, whiteSpace: "nowrap" }}>
-        صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
-      </span>
+      {modern ? (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 999,
+            border: `1.5px solid ${theme.chipBorder}`,
+            backgroundColor: theme.sheetBg,
+            color: theme.chipText,
+            fontSize: 10.5,
+            fontWeight: 700,
+            padding: "2px 12px 3.5px",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
+        </span>
+      ) : (
+        <span style={{ fontSize: 10.5, color: theme.contMuted, whiteSpace: "nowrap" }}>
+          صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
+        </span>
+      )}
     </div>
   );
 }
@@ -771,12 +1106,19 @@ function ContinuationHeader({
  * a small 2×2 card in the middle, leaving the bracket the lion's share of the
  * page. Referees fill the dotted lines with a pen after the matches.
  */
-function ResultsTable({ withBronze }: { withBronze: boolean }) {
+function ResultsTable({
+  withBronze,
+  design = "classic",
+}: {
+  withBronze: boolean;
+  design?: SheetLayoutId;
+}) {
   // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن
   const ranks = withBronze
     ? ["نفر اول", "نفر دوم", "نفر سوم", "نفر چهارم"]
     : ["نفر اول", "نفر دوم", "نفر سوم (مشترک)", "نفر سوم (مشترک)"];
   const theme = useTableTheme();
+  const modern = design === "modern";
   return (
     <div
       style={{
@@ -784,27 +1126,42 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
         maxWidth: 420,
         flexShrink: 0,
         border: `1.5px solid ${theme.resultsBorder}`,
-        borderRadius: 10,
+        borderRadius: modern ? 12 : 10,
         overflow: "hidden",
         backgroundColor: theme.resultsCellBg,
+        boxShadow: modern ? "0 1px 3px rgba(15, 31, 56, 0.1)" : undefined,
       }}
     >
       <div
         dir="rtl"
         style={{
           display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 10,
-          backgroundColor: theme.resultsHeaderBg,
-          color: theme.resultsHeaderText,
-          padding: "4px 12px",
+          alignItems: modern ? "center" : "baseline",
+          justifyContent: modern ? "center" : "space-between",
+          flexDirection: modern ? "column" : undefined,
+          gap: modern ? 1 : 10,
+          backgroundColor: modern ? theme.matBadgeBg : theme.resultsHeaderBg,
+          color: modern ? theme.matBadgeText : theme.resultsHeaderText,
+          padding: modern ? "5px 12px 7px" : "4px 12px",
         }}
       >
-        <span style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap" }}>
+        <span
+          style={{
+            fontSize: 11.5,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            letterSpacing: modern ? 1.5 : undefined,
+          }}
+        >
           نتایج نهایی
         </span>
-        <span style={{ fontSize: 8.5, color: theme.resultsHeaderSub }}>
+        <span
+          style={{
+            fontSize: 8.5,
+            color: modern ? theme.matBadgeText : theme.resultsHeaderSub,
+            opacity: modern ? 0.85 : undefined,
+          }}
+        >
           نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
         </span>
       </div>
@@ -813,7 +1170,8 @@ function ResultsTable({ withBronze }: { withBronze: boolean }) {
           <div
             key={rank + index}
             style={{
-              padding: "4px 12px 7px",
+              padding: modern ? "4px 14px 7px" : "4px 12px 7px",
+              textAlign: modern ? "center" : undefined,
               borderTop: index >= 2 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               borderInlineEnd: index % 2 === 0 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               backgroundColor: theme.resultsCellBg,

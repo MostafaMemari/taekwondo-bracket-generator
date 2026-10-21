@@ -17,6 +17,7 @@ import {
   type MatchChipStyle,
 } from '../lib/matchChipStyles.ts'
 import { isTableThemeId, type TableThemeId } from '../lib/tableThemes.ts'
+import { normalizeSheetLayoutId, type SheetLayoutId } from '../lib/sheetLayouts.ts'
 import type {
   CategoryGroup,
   GroupDraw,
@@ -250,6 +251,13 @@ interface TournamentState {
    */
   showChampion: boolean
   setShowChampion: (value: boolean) => void
+  /**
+   * طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ ریبون دار و جدول با نوار
+   * لبه بالا)؛ انتخاب شخصی است و با ورود فهرست جدید عوض نمی شود. تم های رنگی
+   * روی هر دو طرح یک جا می نشینند — طرح ساختار است، تم رنگ.
+   */
+  sheetLayout: SheetLayoutId
+  setSheetLayout: (layout: SheetLayoutId) => void
 }
 
 const historyLimit = 40
@@ -296,6 +304,9 @@ export const useTournament = create<TournamentState>()(
       // پلاک قهرمان به طور پیش فرض روشن است
       showChampion: true,
       setShowChampion: (value) => set({ showChampion: value }),
+      // طرح برگه پیش فرض کلاسیک است — ظاهر همیشگی دست نخورده می ماند
+      sheetLayout: 'classic' as SheetLayoutId,
+      setSheetLayout: (layout) => set({ sheetLayout: normalizeSheetLayoutId(layout) }),
 
       importRoster: (fileName, roster) =>
         set({
@@ -801,7 +812,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 16,
+      version: 17,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -821,6 +832,7 @@ export const useTournament = create<TournamentState>()(
         //      v15: کمربند بازه زمانی + کمربند جدول دیگر trim نمی شود
         //           (باگ «نمی گذارد فاصله بدهم»)
         //      v16: کلید نمایش پلاک قهرمان — ذخیره های قدیمی روشن شروع می کنند
+        //      v17: طرح برگه (کلاسیک/مدرن) — ذخیره های قدیمی کلاسیک شروع می کنند
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -869,6 +881,7 @@ export const useTournament = create<TournamentState>()(
           matchChipStyle: normalizeMatchChipStyle(state.matchChipStyle),
           matchChipSize: normalizeMatchChipSize(state.matchChipSize),
           showChampion: state.showChampion !== false,
+          sheetLayout: normalizeSheetLayoutId(state.sheetLayout),
         }
       },
       partialize: (state) => ({
@@ -890,6 +903,7 @@ export const useTournament = create<TournamentState>()(
         matchChipStyle: state.matchChipStyle,
         matchChipSize: state.matchChipSize,
         showChampion: state.showChampion,
+        sheetLayout: state.sheetLayout,
       }),
     },
   ),

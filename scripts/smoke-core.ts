@@ -1059,6 +1059,53 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
   })(),
 )
 
+// ————— طرح برگه (کلاسیک/مدرن) — منبع حقیقت + مهاجرت v17 —————
+
+{
+  const layouts = await import('../src/lib/sheetLayouts.ts')
+  const layoutList = layouts.sheetLayouts
+  check('sheet layouts: two options, classic first and default',
+    layoutList.length === 2 &&
+      layoutList[0]!.id === 'classic' &&
+      layoutList[1]!.id === 'modern',
+  )
+  check('sheet layouts: normalize accepts valid ids and rejects junk/empty',
+    layouts.normalizeSheetLayoutId('modern') === 'modern' &&
+      layouts.normalizeSheetLayoutId('classic') === 'classic' &&
+      layouts.normalizeSheetLayoutId('junk') === 'classic' &&
+      layouts.normalizeSheetLayoutId(42) === 'classic' &&
+      layouts.normalizeSheetLayoutId(undefined) === 'classic',
+  )
+}
+
+check('sheet layout: store migration v17 defaults old saves to classic and keeps modern',
+  await (async () => {
+    if (typeof globalThis.localStorage === 'undefined') {
+      const memory = new Map<string, string>()
+      const memoryStorage = {
+        getItem: (key: string) => memory.get(key) ?? null,
+        setItem: (key: string, value: string) => void memory.set(key, value),
+        removeItem: (key: string) => void memory.delete(key),
+      }
+      Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+      ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+    }
+    const { useTournament } = await import('../src/store/tournamentStore.ts')
+    const migrate = (
+      useTournament as unknown as {
+        persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+      }
+    ).persist?.getOptions?.()?.migrate
+    if (typeof migrate !== 'function') return false
+    const fresh = migrate({}) as { sheetLayout?: string }
+    const kept = migrate({ sheetLayout: 'modern' }) as { sheetLayout?: string }
+    const junk = migrate({ sheetLayout: 'junk' }) as { sheetLayout?: string }
+    return fresh.sheetLayout === 'classic' &&
+      kept.sheetLayout === 'modern' &&
+      junk.sheetLayout === 'classic'
+  })(),
+)
+
 if (failures > 0) {
   console.error(`${failures} failure(s)`)
   process.exit(1)
