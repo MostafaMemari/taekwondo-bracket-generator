@@ -44,7 +44,6 @@ import {
   matchNumberTooltip,
   useMatchNumberField,
 } from "../bracket/matchNumberField.ts";
-import type { SheetLayoutId } from "../../lib/sheetLayouts.ts";
 
 /** A4 landscape at 96 dpi */
 export const sheetWidth = 1120;
@@ -129,7 +128,7 @@ export function BracketSheet({
   const chipScale = matchChipFactor(matchChipSize);
   // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
   const showChampion = useTournament((state) => state.showChampion);
-  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ ریبون دار و ردیف های نوار بالا)
+  // طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ وسط چین ساده و ردیف های بی حاشیه)
   const sheetLayout = useTournament((state) => state.sheetLayout);
   const modern = sheetLayout === "modern";
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
@@ -226,249 +225,147 @@ export function BracketSheet({
     return modern ? renderModernHeader() : renderClassicHeader();
   }
 
-  /** سربرگ طرح مدرن — ریبون رنگی لبه بالا (خود ریبون در بدنه برگه است)،
-   *  لوگوی کاشی دار، عنوان با خط تزئینی دو طرف، همه بج ها پیل، و آمار به
-   *  شکل سه پیل عمودی — همه رنگ ها از همان تم جدول می آید */
+  /** سربرگ طرح مدرن — عمدا خلوت: نه ریبون، نه خط تزئینی، نه پیل و کادر.
+   *  یک ستون وسط چین ساده: لوگوی بدون کاشی در لبه، عنوان، زیرعنوان، بج ها
+   *  متن ساده (فقط زمین و ساعت پر می گیرند تا از دور دیده شوند) و آمار به
+   *  شکل یک خط متن — همه رنگ ها از همان تم جدول می آید */
   function renderModernHeader() {
     const participantCount = draw.group.participantIds.length;
     const restCount = draw.structure.restSlotIds.length;
     const title = meta.title || "قرعه کشی مسابقات تکواندو";
-
-    const pill: React.CSSProperties = {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6,
-      borderRadius: 999,
-      backgroundColor: theme.chipBg,
-      border: `1.5px solid ${theme.chipBorder}`,
-      color: theme.chipText,
-      padding: "3px 14px 4.5px",
-      fontSize: 14,
-      fontWeight: 700,
-      whiteSpace: "nowrap",
-      flexShrink: 0,
-    };
 
     return (
       <header
         style={{
           height: headerHeight,
           flexShrink: 0,
-          display: "grid",
-          gridTemplateColumns: "auto 1fr auto",
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: 18,
-          padding: `8px ${SHEET_PAD_X}px 10px`,
+          justifyContent: "center",
+          gap: 2,
+          padding: `4px ${SHEET_PAD_X}px 6px`,
         }}
       >
-        {/* راست: لوگوی کاشی دار — کادر گرد با پس زمینه تم */}
-        <div style={{ justifySelf: "start", minWidth: 0 }}>
-          {meta.logoDataUrl && (
-            <div
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 16,
-                backgroundColor: theme.chipBg,
-                border: `1.5px solid ${theme.chipBorder}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                boxShadow: "0 1px 3px rgba(15, 31, 56, 0.12)",
-              }}
-            >
-              <img
-                src={meta.logoDataUrl}
-                alt=""
-                style={{ maxWidth: 64, maxHeight: 64, objectFit: "contain" }}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* وسط: عنوان با خط تزئینی دو طرف + همه بج ها در یک ردیف پیل */}
-        <div
+        {/* لوگو بدون کاشی و کادر — لبه شروع سربرگ، وسط چین بودن بقیه را به هم نمی زند */}
+        {meta.logoDataUrl && (
+          <img
+            src={meta.logoDataUrl}
+            alt=""
+            style={{
+              position: "absolute",
+              insetInlineStart: SHEET_PAD_X,
+              top: "50%",
+              transform: "translateY(-50%)",
+              width: 64,
+              height: 64,
+              objectFit: "contain",
+            }}
+          />
+        )}
+        <h1
           style={{
-            minWidth: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 4,
+            fontFamily: "Lalezar, Vazirmatn, sans-serif",
+            fontSize: 28,
+            lineHeight: 1.15,
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            textAlign: "center",
+            maxWidth: 720,
+            color: theme.titleText,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              width: "100%",
-              maxWidth: 660,
-            }}
-          >
-            <span
-              aria-hidden
-              style={{
-                flex: 1,
-                height: 2,
-                borderRadius: 999,
-                background: `linear-gradient(to left, ${theme.headerRule}, transparent)`,
-              }}
-            />
-            <h1
-              style={{
-                fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: meta.title ? 30 : 26,
-                lineHeight: 1.2,
-                margin: 0,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                textAlign: "center",
-                color: theme.titleText,
-              }}
-            >
-              {title}
-            </h1>
-            <span
-              aria-hidden
-              style={{
-                flex: 1,
-                height: 2,
-                borderRadius: 999,
-                background: `linear-gradient(to right, ${theme.headerRule}, transparent)`,
-              }}
-            />
-          </div>
-          {meta.subtitle && (
-            <p
-              style={{
-                fontSize: 12.5,
-                color: theme.subtitleText,
-                margin: 0,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                textAlign: "center",
-                maxWidth: 660,
-              }}
-            >
-              {meta.subtitle}
-            </p>
-          )}
-          {/* همه بج ها یک ردیف — وزن، کمربند، زمین و ساعت همه پیل */}
+          {title}
+        </h1>
+        {meta.subtitle && (
           <p
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              gap: 8,
-              margin: "2px 0 0",
+              fontSize: 12,
+              lineHeight: 1.3,
+              color: theme.subtitleText,
+              margin: 0,
               whiteSpace: "nowrap",
               overflow: "hidden",
+              textOverflow: "ellipsis",
+              textAlign: "center",
+              maxWidth: 680,
             }}
           >
-            <span style={pill}>
-              {renderWeightTitle(meta.sheetTitleFormat, {
-                ageCategory: draw.group.ageCategory,
-                weightCategory: draw.group.weightCategory,
-                tournamentTitle: meta.title,
-              })}
-            </span>
-            {beltLabel && <span style={pill}>کمربند {beltLabel}</span>}
-            {matLabel && (
-              <span
-                style={{
-                  ...pill,
-                  fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                  fontSize: 17,
-                  fontWeight: 400,
-                  letterSpacing: 0.5,
-                  color: theme.matBadgeText,
-                  backgroundColor: theme.matBadgeBg,
-                  border: `1.5px solid ${theme.matBadgeBg}`,
-                  padding: "3px 18px 5.5px",
-                }}
-              >
-                {matLabel}
-              </span>
-            )}
-            {attendTime && (
-              <span
-                style={{
-                  ...pill,
-                  fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                  fontSize: 17,
-                  fontWeight: 400,
-                  letterSpacing: 0.5,
-                  color: theme.timeBadgeText,
-                  backgroundColor: theme.timeBadgeBg,
-                  border: `2px solid ${theme.timeBadgeBorder}`,
-                  padding: "2px 18px 4.5px",
-                }}
-              >
-                ساعت {toFaDigits(attendTime)}
-              </span>
-            )}
+            {meta.subtitle}
           </p>
-        </div>
-
-        {/* چپ: آمار به شکل سه پیل عمودی */}
-        <div
+        )}
+        {/* بج ها متن ساده — وزن و کمربند بی کادر؛ فقط زمین و ساعت پر می گیرند */}
+        <p
           style={{
-            justifySelf: "end",
-            flexShrink: 0,
             display: "flex",
-            flexDirection: "column",
-            alignItems: "stretch",
-            gap: 4,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            margin: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
           }}
         >
-          {(
-            [
-              { label: "شرکت کننده", value: participantCount },
-              { label: "مسابقه", value: realMatchCount(draw) },
-              { label: "استراحت", value: restCount },
-            ] as const
-          ).map((stat) => (
-            <div
-              key={stat.label}
+          <span style={{ fontSize: 15, fontWeight: 700, color: theme.titleText }}>
+            {renderWeightTitle(meta.sheetTitleFormat, {
+              ageCategory: draw.group.ageCategory,
+              weightCategory: draw.group.weightCategory,
+              tournamentTitle: meta.title,
+            })}
+          </span>
+          {beltLabel && (
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: theme.subtitleText }}>
+              کمربند {beltLabel}
+            </span>
+          )}
+          {matLabel && (
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                borderRadius: 999,
-                border: `1.5px solid ${theme.statBorder}`,
-                backgroundColor: theme.chipBg,
-                padding: "2px 12px 3.5px",
-                minWidth: 118,
+                fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                fontSize: 16,
+                lineHeight: 1,
+                letterSpacing: 0.5,
+                color: theme.matBadgeText,
+                backgroundColor: theme.matBadgeBg,
+                borderRadius: 8,
+                padding: "4px 14px 6px",
               }}
             >
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: theme.statLabel,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {stat.label}
-              </span>
-              <span
-                style={{
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: theme.titleText,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {toFaDigits(stat.value)}
-              </span>
-            </div>
-          ))}
-        </div>
+              {matLabel}
+            </span>
+          )}
+          {attendTime && (
+            <span
+              style={{
+                fontFamily: "Lalezar, Vazirmatn, sans-serif",
+                fontSize: 16,
+                lineHeight: 1,
+                letterSpacing: 0.5,
+                color: theme.timeBadgeText,
+                backgroundColor: theme.timeBadgeBg,
+                borderRadius: 8,
+                padding: "3px 14px 5px",
+              }}
+            >
+              ساعت {toFaDigits(attendTime)}
+            </span>
+          )}
+        </p>
+        {/* آمار — یک خط متن ساده، بدون جعبه و پیل */}
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11.5,
+            fontWeight: 500,
+            color: theme.statLabel,
+            whiteSpace: "nowrap",
+          }}
+        >
+          شرکت کننده {toFaDigits(participantCount)} · مسابقه {toFaDigits(realMatchCount(draw))} · استراحت {toFaDigits(restCount)}
+        </p>
       </header>
     );
   }
@@ -704,37 +601,14 @@ export function BracketSheet({
                 transform: "translateX(-50%)",
               }}
             >
-              {modern ? (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    maxWidth: "100%",
-                    borderRadius: 999,
-                    backgroundColor: theme.chipBg,
-                    border: `1.5px solid ${theme.chipBorder}`,
-                    padding: "2.5px 10px 4px",
-                  }}
-                >
-                  <FitText
-                    text={roundLabel(column.round, draw.structure.roundCount)}
-                    baseSize={11.5}
-                    minSize={7.5}
-                    align="center"
-                    className="font-bold"
-                    style={{ color: theme.roundLabel }}
-                  />
-                </div>
-              ) : (
-                <FitText
-                  text={roundLabel(column.round, draw.structure.roundCount)}
-                  baseSize={12.5}
-                  minSize={8}
-                  align="center"
-                  className="font-bold"
-                  style={{ color: theme.roundLabel }}
-                />
-              )}
+              <FitText
+                text={roundLabel(column.round, draw.structure.roundCount)}
+                baseSize={12.5}
+                minSize={8}
+                align="center"
+                className="font-bold"
+                style={{ color: theme.roundLabel }}
+              />
             </div>
           ))}
 
@@ -753,7 +627,6 @@ export function BracketSheet({
                 match={match}
                 roundCount={draw.structure.roundCount}
                 dims={dims}
-                design={sheetLayout}
                 renderLeaf={(leaf, side) =>
                   renderLeaf(leaf, side, dims, match, barSideForMatch(match, layout.width))
                 }
@@ -774,14 +647,12 @@ export function BracketSheet({
                 alignItems: "center",
                 justifyContent: "center",
                 background: `linear-gradient(135deg, ${theme.championFrom}, ${theme.championTo})`,
-                borderRadius: modern ? 999 : 10,
+                borderRadius: 10,
                 color: theme.championText,
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
-                fontSize: modern ? 20 : 22,
-                letterSpacing: modern ? 3 : 1.5,
-                boxShadow: modern
-                  ? `inset 0 0 0 2.5px rgba(255, 255, 255, 0.4), ${theme.championShadow}`
-                  : theme.championShadow,
+                fontSize: 22,
+                letterSpacing: 1.5,
+                boxShadow: theme.championShadow,
               }}
             >
               قهرمان
@@ -881,20 +752,9 @@ export function BracketSheet({
 
   function renderResults() {
     return withResults ? (
-      <ResultsTable
-        withBronze={Boolean(draw.structure.bronzeMatch)}
-        design={sheetLayout}
-      />
+      <ResultsTable withBronze={Boolean(draw.structure.bronzeMatch)} />
     ) : null;
   }
-
-  // ریبون رنگی لبه بالای برگه مدرن — امضای بصری طرح جدید؛ در کلاسیک هیچ است
-  const topRibbon = modern ? (
-    <div
-      aria-hidden
-      style={{ height: 6, flexShrink: 0, backgroundColor: theme.matBadgeBg }}
-    />
-  ) : null;
 
   const sheetStyle: React.CSSProperties = {
     width: sheetWidth,
@@ -923,7 +783,6 @@ export function BracketSheet({
           dir="rtl"
           style={{ ...sheetStyle, height: pageHeight }}
         >
-          {topRibbon}
           {isSolo ? (
             <main
               style={{
@@ -980,7 +839,6 @@ export function BracketSheet({
             className={`print-page pdf-page ${variant === "print" ? "shadow-2xl" : ""}`}
             style={{ ...sheetStyle, height: pageHeight }}
           >
-            {topRibbon}
             {isFirst ? (
               renderHeader()
             ) : (
@@ -990,7 +848,6 @@ export function BracketSheet({
                 note={note}
                 page={page}
                 total={plans.length}
-                design={sheetLayout}
               />
             )}
             <main
@@ -1007,10 +864,7 @@ export function BracketSheet({
             >
               {renderBand(layout, dims)}
               {showResults && (
-                <ResultsTable
-                  withBronze={Boolean(draw.structure.bronzeMatch)}
-                  design={sheetLayout}
-                />
+                <ResultsTable withBronze={Boolean(draw.structure.bronzeMatch)} />
               )}
             </main>
           </div>
@@ -1028,17 +882,14 @@ function ContinuationHeader({
   note,
   page,
   total,
-  design = "classic",
 }: {
   draw: GroupDraw;
   meta: TournamentMeta;
   note: string;
   page: number;
   total: number;
-  design?: SheetLayoutId;
 }) {
   const theme = useTableTheme();
-  const modern = design === "modern";
   return (
     <div
       dir="rtl"
@@ -1050,8 +901,7 @@ function ContinuationHeader({
         justifyContent: "space-between",
         gap: 12,
         padding: `0 ${SHEET_PAD_X}px`,
-        borderBottom: modern ? `2px solid ${theme.headerRule}` : `1.5px solid ${theme.contRule}`,
-        backgroundColor: modern ? theme.chipBg : undefined,
+        borderBottom: `1.5px solid ${theme.contRule}`,
       }}
     >
       <span
@@ -1073,29 +923,9 @@ function ContinuationHeader({
         })}
         <span style={{ fontSize: 10.5, fontWeight: 500, color: theme.contMuted }}>— {note}</span>
       </span>
-      {modern ? (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            borderRadius: 999,
-            border: `1.5px solid ${theme.chipBorder}`,
-            backgroundColor: theme.sheetBg,
-            color: theme.chipText,
-            fontSize: 10.5,
-            fontWeight: 700,
-            padding: "2px 12px 3.5px",
-            whiteSpace: "nowrap",
-            flexShrink: 0,
-          }}
-        >
-          صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
-        </span>
-      ) : (
-        <span style={{ fontSize: 10.5, color: theme.contMuted, whiteSpace: "nowrap" }}>
-          صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
-        </span>
-      )}
+      <span style={{ fontSize: 10.5, color: theme.contMuted, whiteSpace: "nowrap" }}>
+        صفحه {toFaDigits(page + 1)} از {toFaDigits(total)}
+      </span>
     </div>
   );
 }
@@ -1106,19 +936,12 @@ function ContinuationHeader({
  * a small 2×2 card in the middle, leaving the bracket the lion's share of the
  * page. Referees fill the dotted lines with a pen after the matches.
  */
-function ResultsTable({
-  withBronze,
-  design = "classic",
-}: {
-  withBronze: boolean;
-  design?: SheetLayoutId;
-}) {
+function ResultsTable({ withBronze }: { withBronze: boolean }) {
   // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن
   const ranks = withBronze
     ? ["نفر اول", "نفر دوم", "نفر سوم", "نفر چهارم"]
     : ["نفر اول", "نفر دوم", "نفر سوم (مشترک)", "نفر سوم (مشترک)"];
   const theme = useTableTheme();
-  const modern = design === "modern";
   return (
     <div
       style={{
@@ -1126,23 +949,21 @@ function ResultsTable({
         maxWidth: 420,
         flexShrink: 0,
         border: `1.5px solid ${theme.resultsBorder}`,
-        borderRadius: modern ? 12 : 10,
+        borderRadius: 10,
         overflow: "hidden",
         backgroundColor: theme.resultsCellBg,
-        boxShadow: modern ? "0 1px 3px rgba(15, 31, 56, 0.1)" : undefined,
       }}
     >
       <div
         dir="rtl"
         style={{
           display: "flex",
-          alignItems: modern ? "center" : "baseline",
-          justifyContent: modern ? "center" : "space-between",
-          flexDirection: modern ? "column" : undefined,
-          gap: modern ? 1 : 10,
-          backgroundColor: modern ? theme.matBadgeBg : theme.resultsHeaderBg,
-          color: modern ? theme.matBadgeText : theme.resultsHeaderText,
-          padding: modern ? "5px 12px 7px" : "4px 12px",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 10,
+          backgroundColor: theme.resultsHeaderBg,
+          color: theme.resultsHeaderText,
+          padding: "4px 12px",
         }}
       >
         <span
@@ -1150,7 +971,6 @@ function ResultsTable({
             fontSize: 11.5,
             fontWeight: 700,
             whiteSpace: "nowrap",
-            letterSpacing: modern ? 1.5 : undefined,
           }}
         >
           نتایج نهایی
@@ -1158,8 +978,7 @@ function ResultsTable({
         <span
           style={{
             fontSize: 8.5,
-            color: modern ? theme.matBadgeText : theme.resultsHeaderSub,
-            opacity: modern ? 0.85 : undefined,
+            color: theme.resultsHeaderSub,
           }}
         >
           نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
@@ -1170,8 +989,7 @@ function ResultsTable({
           <div
             key={rank + index}
             style={{
-              padding: modern ? "4px 14px 7px" : "4px 12px 7px",
-              textAlign: modern ? "center" : undefined,
+              padding: "4px 12px 7px",
               borderTop: index >= 2 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               borderInlineEnd: index % 2 === 0 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
               backgroundColor: theme.resultsCellBg,

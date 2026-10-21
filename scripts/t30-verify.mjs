@@ -1,5 +1,6 @@
-/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن) — تعویض از تنظیمات، سربرگ و
-   ردیف های مدرن، سازگاری تم شبانه با طرح مدرن، و برگشت بی رگرسیون به کلاسیک */
+/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن خلوت) — تعویض از تنظیمات، سربرگ
+   وسط چین ساده و ردیف های بی حاشیه مدرن، سازگاری تم شبانه با طرح مدرن، و
+   برگشت بی رگرسیون به کلاسیک */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
@@ -34,13 +35,27 @@ check(
   'default layout: sheet carries data-sheet-layout="classic"',
   (await firstSheet.getAttribute('data-sheet-layout')) === 'classic',
 )
-const classicRibbon = await page.evaluate(() => {
+const classicState = await page.evaluate(() => {
   const sheet = document.querySelector('#pdf-sheet-1000')
   if (!sheet) return null
-  const first = sheet.firstElementChild
-  return first ? first.getBoundingClientRect().height : null
+  const rows = [...sheet.querySelectorAll('[dir="rtl"].flex.h-full')].slice(0, 6)
+  const sideBar = rows.some((row) => {
+    const kid = row.firstElementChild
+    return kid && kid.getAttribute('aria-hidden') === 'true' && kid.getBoundingClientRect().width < 6
+  })
+  return {
+    firstTag: sheet.firstElementChild?.tagName ?? '',
+    headerRule: sheet.querySelector('header') ? getComputedStyle(sheet.querySelector('header')).borderBottomWidth : '',
+    sideBar,
+  }
 })
-check('classic layout: no ribbon strip on top of the sheet', classicRibbon !== 6)
+check(
+  'classic layout: header first + rule under header + mirrored side bars',
+  Boolean(classicState) &&
+    classicState.firstTag === 'HEADER' &&
+    parseFloat(classicState.headerRule) >= 2 &&
+    classicState.sideBar,
+)
 await page.screenshot({ path: 'scripts/t30/classic-sheet.png' })
 
 /* ————— تنظیمات: انتخاب طرح مدرن ————— */
@@ -69,13 +84,13 @@ check(
   (await firstSheet.getAttribute('data-sheet-layout')) === 'modern',
 )
 
-/* ————— امضاهای بصری طرح مدرن ————— */
+/* ————— امضاهای بصری طرح مدرن خلوت ————— */
 const modern = await page.evaluate(() => {
   const sheet = document.querySelector('#pdf-sheet-1000')
   if (!sheet) return null
   const first = sheet.firstElementChild
-  const ribbon = first && first.getAttribute('aria-hidden') === 'true' ? first : null
   const header = sheet.querySelector('header')
+  const headerStyle = header ? getComputedStyle(header) : null
   const rows = [...sheet.querySelectorAll('[dir="rtl"].flex.h-full')].slice(0, 6)
   const rowWithTopStripe = rows.some((row) => {
     const style = getComputedStyle(row)
@@ -89,64 +104,64 @@ const modern = await page.evaluate(() => {
     const style = getComputedStyle(span)
     return style.borderTopLeftRadius === '999px' && span.textContent?.trim().length > 0
   }).length
-  const stats = [...sheet.querySelectorAll('header span')].filter(
-    (span) => span.textContent === 'شرکت کننده',
-  ).length
+  const statLine = [...(header?.querySelectorAll('p') ?? [])].some((p) =>
+    p.textContent?.includes('شرکت کننده') && p.textContent?.includes('·'),
+  )
   const sheetRect = sheet.getBoundingClientRect()
   return {
-    ribbonHeight: ribbon ? ribbon.getBoundingClientRect().height : 0,
-    ribbonColor: ribbon ? getComputedStyle(ribbon).backgroundColor : '',
+    firstIsHeader: first?.tagName === 'HEADER',
     hasHeader: Boolean(header),
-    flanks: header
-      ? [...header.querySelectorAll('span[aria-hidden="true"]')].filter(
-          (span) => getComputedStyle(span).height === '2px',
-        ).length
-      : 0,
+    headerRuleWidth: headerStyle ? parseFloat(headerStyle.borderBottomWidth) : -1,
     rowWithTopStripe,
     sideBarRows,
     pills,
-    statPills: stats,
+    statLine,
     sheetHeight: sheetRect.height,
     overflow: sheet.scrollHeight - sheet.clientHeight,
   }
 })
 check('modern: geometry measurable', Boolean(modern))
 if (modern) {
-  check(`modern: ribbon strip 6px on top (${modern.ribbonHeight}px, ${modern.ribbonColor})`,
-    modern.ribbonHeight === 6 && modern.ribbonColor === 'rgb(30, 58, 95)')
+  check('modern: no ribbon strip — header is the first element', modern.firstIsHeader)
   check('modern: header renders', modern.hasHeader)
-  check(`modern: title has two flanking rules (${modern.flanks})`, modern.flanks === 2)
-  check('modern: rows use top stripes', modern.rowWithTopStripe)
+  check(`modern: no rule under header (${modern.headerRuleWidth}px)`, modern.headerRuleWidth === 0)
+  check('modern: rows are frameless tint — no top stripes', !modern.rowWithTopStripe)
   check(`modern: no mirrored side bars left in rows (${modern.sideBarRows})`, modern.sideBarRows === 0)
-  check(`modern: badge pills in header (${modern.pills})`, modern.pills >= 1)
-  check(`modern: stats as stacked pills (${modern.statPills})`, modern.statPills === 1)
+  check(`modern: no capsule pills in header (${modern.pills})`, modern.pills === 0)
+  check('modern: stats render as one plain text line', modern.statLine)
   check(`modern: sheet still A4 fixed (${modern.sheetHeight}px, overflow ${modern.overflow}px)`,
     Math.abs(modern.sheetHeight - 770) <= 1 && modern.overflow <= 1)
 }
 await page.screenshot({ path: 'scripts/t30/modern-sheet.png' })
 
-/* ————— سازگاری تم: شبانه + مدرن — ریبون رنگ تم می گیرد ————— */
+/* ————— سازگاری تم: شبانه + مدرن — بج زمین رنگ تم می گیرد ————— */
 await page.getByLabel('تنظیمات مسابقات').click()
 await page.waitForTimeout(300)
 await page.getByRole('button', { name: /شبانه/ }).first().click()
 await page.getByRole('button', { name: 'ذخیره' }).click()
 await page.waitForTimeout(600)
 
-const nightRibbon = await page.evaluate(() => {
+const nightModern = await page.evaluate(() => {
   const sheet = document.querySelector('#pdf-sheet-1000')
-  const ribbon = sheet?.firstElementChild
-  if (!sheet || !ribbon || ribbon.getAttribute('aria-hidden') !== 'true') return null
-  const layout = sheet.getAttribute('data-sheet-layout')
-  const bg = getComputedStyle(ribbon).backgroundColor
-  const body = getComputedStyle(sheet).backgroundColor
-  return { layout, bg, body }
+  if (!sheet) return null
+  const header = sheet.querySelector('header')
+  const matBadge = [...(header?.querySelectorAll('span') ?? [])].find(
+    (span) => span.textContent?.trim() === 'زمین ۱',
+  )
+  return {
+    layout: sheet.getAttribute('data-sheet-layout'),
+    firstIsHeader: sheet.firstElementChild?.tagName === 'HEADER',
+    body: getComputedStyle(sheet).backgroundColor,
+    matBadgeBg: matBadge ? getComputedStyle(matBadge).backgroundColor : null,
+  }
 })
 check(
-  `night theme + modern layout: ribbon takes the theme color (${nightRibbon?.bg})`,
-  Boolean(nightRibbon) &&
-    nightRibbon.layout === 'modern' &&
-    nightRibbon.bg === 'rgb(47, 107, 216)' &&
-    nightRibbon.body === 'rgb(14, 26, 46)',
+  `night theme + modern layout: mat badge takes the theme color (${nightModern?.matBadgeBg})`,
+  Boolean(nightModern) &&
+    nightModern.layout === 'modern' &&
+    nightModern.firstIsHeader &&
+    nightModern.body === 'rgb(14, 26, 46)' &&
+    nightModern.matBadgeBg === 'rgb(47, 107, 216)',
 )
 await page.screenshot({ path: 'scripts/t30/modern-night.png' })
 
@@ -171,13 +186,17 @@ const backToClassic = await page.evaluate(() => {
   })
   return {
     layout: sheet.getAttribute('data-sheet-layout'),
-    ribbon: sheet.firstElementChild?.getBoundingClientRect().height,
+    firstTag: sheet.firstElementChild?.tagName ?? '',
+    headerRule: sheet.querySelector('header') ? getComputedStyle(sheet.querySelector('header')).borderBottomWidth : '',
     sideBar,
   }
 })
 check(
-  'back to classic: attribute + no ribbon + mirrored side bar returns',
-  backToClassic.layout === 'classic' && backToClassic.ribbon !== 6 && backToClassic.sideBar,
+  'back to classic: attribute + rule under header + mirrored side bar returns',
+  backToClassic.layout === 'classic' &&
+    backToClassic.firstTag === 'HEADER' &&
+    parseFloat(backToClassic.headerRule) >= 2 &&
+    backToClassic.sideBar,
 )
 await page.screenshot({ path: 'scripts/t30/back-to-classic.png' })
 
