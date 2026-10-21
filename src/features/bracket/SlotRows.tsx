@@ -27,11 +27,9 @@ import type { SheetLayoutId } from '../../lib/sheetLayouts.ts'
 export type BarSide = 'right' | 'left'
 
 /**
- * طرح ردیف — کلاسیک: نوار رنگی روی لبه بیرونی (آینه ای)؛ مدرن: رنگ ملایم گوشه
- * داخل یک کادر نازک — بازخورد کاربر بین شلوغی نسخه پیل دار و بی شخصیتی نسخه
- * بی کادر، «یذره کادر» را انتخاب کرد: خط ۱ پیکسل ملایم دور هر کارت، بدون هیچ
- * نوار ضخیم. پیش فرض کلاسیک تا بوم قرعه و همه مصرف کننده های قدیمی دست نخورده
- * بمانند.
+ * طرح ردیف — کلاسیک: نوار رنگی روی لبه بیرونی (آینه ای)؛ مدرن: نوار رنگی لبه
+ * بالای کارت (آینه بی معناست چون نوار سراسری است) + خط نرم دور کارت. پیش فرض
+ * کلاسیک تا بوم قرعه و همه مصرف کننده های قدیمی دست نخورده بمانند.
  */
 export type RowDesign = SheetLayoutId
 
@@ -64,8 +62,7 @@ export function AthleteRow({
     (showCoach ?? nameFontSize >= 11) && participant.coachName.trim().length > 0
   const subSize = coachFontSize ?? Math.max(8.5, nameFontSize - 4.5)
 
-  // طرح مدرن — کارت کادردار: رنگ ملایم گوشه + خط نازک دور کارت (کادر ۱px)؛
-  // نه نوار ضخیم کنار (مال کلاسیک) نه کارت بی شخصیت بی خط
+  // طرح مدرن — کارت با نوار رنگی لبه بالا و خط نرم دور؛ نام/مربی همان وسط چین
   if (design === 'modern') {
     return (
       <div
@@ -73,7 +70,9 @@ export function AthleteRow({
         className="flex h-full w-full flex-col overflow-hidden rounded-md"
         style={{
           backgroundColor: sideColors.bgSoft,
-          border: `1px solid ${sideColors.borderSoft}`,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
         }}
       >
         <div className="flex min-h-0 w-full flex-1 flex-col items-stretch justify-center gap-0.5 px-1.5">
@@ -226,7 +225,7 @@ export function PositionRow({ side, emphasis = false }: { side: SlotSide; emphas
  * جایگاه «برنده مسابقه N» — روی صفحه پایانیِ برگه های چند صفحه ای، جایی که
  * مسابقه های دور قبل روی صفحات نوار چیده شده اند. شماره از خود ساختار درخت
  * می آید و با رقم فارسی نشان داده می شود؛ در طرح کلاسیک نوارش مثل ردیف ها
- * آینه می شود و در طرح مدرن داخل کادر نازک می نشیند.
+ * آینه می شود و در طرح مدرن نوار رنگی لبه بالا می گیرد.
  */
 export function WinnerRow({
   matchNumber,
@@ -258,7 +257,9 @@ export function WinnerRow({
         className="flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
         style={{
           backgroundColor: sideColors.bgSoft,
-          border: `1px solid ${sideColors.borderSoft}`,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
         }}
       >
         {label}
@@ -292,7 +293,7 @@ export function WinnerRow({
 /**
  * جایگاه «بازنده مسابقه N» — دو گوشه مسابقه رده بندی باران مدال، جایی که
  * بازنده های دو نیمه نهایی برای مدال برنز به هم می رسند؛ مثل بقیه ردیف ها:
- * نوار آینه در کلاسیک، کادر نازک در مدرن.
+ * نوار آینه در کلاسیک، نوار لبه بالا در مدرن.
  */
 export function LoserRow({
   matchNumber,
@@ -324,7 +325,9 @@ export function LoserRow({
         className="flex h-full w-full items-center justify-center overflow-hidden rounded-md px-2"
         style={{
           backgroundColor: sideColors.bgSoft,
-          border: `1px solid ${sideColors.borderSoft}`,
+          borderTop: `3px solid ${sideColors.accent}`,
+          borderInline: `1px solid ${sideColors.borderSoft}`,
+          borderBottom: `1px solid ${sideColors.borderSoft}`,
         }}
       >
         {label}

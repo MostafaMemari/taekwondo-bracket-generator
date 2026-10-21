@@ -9,11 +9,10 @@ interface MatchBoxProps {
   match: LayoutMatch
   roundCount: number
   dims: LayoutDims
-  /** طرح ردیف ها — فقط ردیف های «بازنده مسابقه» جعبه رده بندی به آن نیاز دارند؛
-   *  پیش فرض کلاسیک تا بوم قرعه دست نخورد */
-  design?: SheetLayoutId
   /** یک برگ درون جعبه — اسلات واقعی یا جایگاه «برنده مسابقه N» (null = ردیف بی نام)؛ مسابقه هم پاس می آید تا برگه تعاملی همسایه اسلات را بشناسد */
   renderLeaf: (leaf: PlanLeaf | null, side: SlotSide, match?: LayoutMatch) => ReactNode
+  /** طرح جعبه — کلاسیک (پیش فرض) یا مدرن: گوشه گردتر و سایه لطیف */
+  design?: SheetLayoutId
 }
 
 /**
@@ -23,11 +22,13 @@ interface MatchBoxProps {
  * is «استراحت») keep a dashed border and carry no number badge. Match numbers
  * are solid badges anchored to the box edges by the layout, not drawn here.
  * خط و پس زمینه از تم جدول می آید — برگه تم انتخابی، بوم قرعه رنگ کلاسیک.
- * جعبه عمدا ساده است: خط نازک، گوشه ۸ و بدون سایه — تمایز طرح ها در ردیف
- * ها و سربرگ است نه در جعبه.
  */
-export function MatchBox({ match, roundCount, dims, design = 'classic', renderLeaf }: MatchBoxProps) {
+export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classic' }: MatchBoxProps) {
   const theme = useTableTheme()
+  // مدرن: گوشه های گردتر + سایه خیلی لطیف — جعبه ها از کاغذ جدا دیده می شوند
+  const modern = design === 'modern'
+  const boxRadius = modern ? 12 : 8
+  const modernShadow = modern ? '0 1px 3px rgba(15, 31, 56, 0.1)' : undefined
 
   // مسابقه رده بندی باران مدال — سرتیتر «رده بندی» و دو ردیف «بازنده مسابقه N»
   if (match.bronze) {
@@ -36,9 +37,10 @@ export function MatchBox({ match, roundCount, dims, design = 'classic', renderLe
         dir="ltr"
         className="relative h-full w-full"
         style={{
-          borderRadius: 8,
+          borderRadius: boxRadius,
           border: `1.5px solid ${theme.bronzeBorder}`,
           backgroundColor: theme.boxBg,
+          boxShadow: modernShadow,
         }}
       >
         <div
@@ -74,9 +76,7 @@ export function MatchBox({ match, roundCount, dims, design = 'classic', renderLe
               height: dims.cardHeight,
             }}
           >
-            {row.loser != null && (
-              <LoserRow matchNumber={row.loser} side={row.side} design={design} />
-            )}
+            {row.loser != null && <LoserRow matchNumber={row.loser} side={row.side} />}
           </div>
         ))}
       </div>
@@ -111,9 +111,10 @@ export function MatchBox({ match, roundCount, dims, design = 'classic', renderLe
       dir="ltr"
       className="relative h-full w-full"
       style={{
-        borderRadius: 8,
+        borderRadius: boxRadius,
         border,
         backgroundColor: theme.boxBg,
+        boxShadow: modernShadow,
       }}
     >
       {rows.map((row) => (

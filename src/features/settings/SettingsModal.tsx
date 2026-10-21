@@ -717,9 +717,8 @@ function MatchChipSizeCard({
 
 /**
  * کارت انتخاب طرح برگه — ماکت کوچک از سربرگ و دو ردیف با خود ساختار طرح
- * (کلاسیک: خط زیر سربرگ، جعبه آمار و نوار کنار ردیف — مدرن: سربرگ وسط چین
- * ساده با خط متن، بدون هیچ کادر و نوار روی ردیف) با رنگ های تم فعلی؛
- * انتخاب با ذخیره اعمال می شود.
+ * (کلاسیک: خط زیر سربرگ و نوار کنار ردیف — مدرن: ریبون بالا، عنوان دو طرف
+ * خط، پیل ها و نوار روی ردیف) با رنگ های تم فعلی؛ انتخاب با ذخیره اعمال می شود.
  */
 function SheetLayoutCard({
   layout,
@@ -748,51 +747,52 @@ function SheetLayoutCard({
         className="overflow-hidden rounded-lg border border-line"
         style={{ backgroundColor: theme.sheetBg }}
       >
-        {/* سربرگ ماکت — کلاسیک: عنوان + جعبه آمار + خط پهن زیر؛ مدرن: ستون وسط چین + جداکننده نازک */}
+        {/* ریبون امضای طرح مدرن */}
+        {modern && (
+          <div aria-hidden style={{ height: 3, backgroundColor: theme.matBadgeBg }} />
+        )}
+        {/* سربرگ ماکت */}
         <div
           className="flex items-center gap-1 px-1.5 py-1"
           style={{
-            borderBottom: modern
-              ? `1px solid ${theme.statBorder}`
-              : `1.5px solid ${theme.headerRule}`,
+            borderBottom: modern ? undefined : `1.5px solid ${theme.headerRule}`,
+            backgroundColor: modern ? theme.sheetBg : undefined,
           }}
         >
+          {modern && (
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-sm"
+              style={{ border: `1px solid ${theme.chipBorder}`, backgroundColor: theme.chipBg }}
+            />
+          )}
+          <span
+            aria-hidden
+            className="mx-auto h-1 rounded-full"
+            style={{
+              width: modern ? '46%' : '50%',
+              backgroundColor: theme.titleText,
+              opacity: 0.85,
+              boxShadow: modern
+                ? `-6px 0 0 -3px ${theme.headerRule}66, 6px 0 0 -3px ${theme.headerRule}66`
+                : undefined,
+            }}
+          />
           {modern ? (
             <span
               aria-hidden
-              className="mx-auto flex w-[62%] flex-col items-center gap-[3px]"
-            >
-              <span
-                aria-hidden
-                className="h-1 w-full rounded-full"
-                style={{ backgroundColor: theme.titleText, opacity: 0.85 }}
-              />
-              <span
-                aria-hidden
-                className="h-[2px] w-3/5 rounded-full"
-                style={{ backgroundColor: theme.titleText, opacity: 0.3 }}
-              />
-            </span>
+              className="h-2 w-4 shrink-0 rounded-full"
+              style={{ backgroundColor: theme.matBadgeBg }}
+            />
           ) : (
-            <>
-              <span
-                aria-hidden
-                className="mx-auto h-1 rounded-full"
-                style={{
-                  width: '50%',
-                  backgroundColor: theme.titleText,
-                  opacity: 0.85,
-                }}
-              />
-              <span
-                aria-hidden
-                className="h-2.5 w-3.5 shrink-0 rounded-sm"
-                style={{ border: `1px solid ${theme.statBorder}` }}
-              />
-            </>
+            <span
+              aria-hidden
+              className="h-2.5 w-3.5 shrink-0 rounded-sm"
+              style={{ border: `1px solid ${theme.statBorder}` }}
+            />
           )}
         </div>
-        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: رنگ ملایم داخل کادر نازک */}
+        {/* دو گوشه ماکت — کلاسیک: نوار کنار؛ مدرن: نوار لبه بالا + خط دور */}
         <div className="space-y-1 p-1.5">
           {(['chong', 'hong'] as const).map((side) => (
             <div
@@ -800,7 +800,13 @@ function SheetLayoutCard({
               className="flex h-3 items-center overflow-hidden rounded"
               style={{
                 backgroundColor: theme.sides[side].bgSoft,
-                ...(modern && { border: `1px solid ${theme.sides[side].borderSoft}` }),
+                ...(modern
+                  ? {
+                      borderTop: `2px solid ${theme.sides[side].accent}`,
+                      borderInline: `1px solid ${theme.sides[side].borderSoft}`,
+                      borderBottom: `1px solid ${theme.sides[side].borderSoft}`,
+                    }
+                  : {}),
               }}
             >
               {!modern && (

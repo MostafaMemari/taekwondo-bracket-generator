@@ -1,6 +1,7 @@
-/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن متعادل) — تعویض از تنظیمات، سربرگ
-   وسط چین با جداکننده نازک و ردیف های کادردار مدرن، سازگاری تم شبانه با طرح
-   مدرن، و برگشت بی رگرسیون به کلاسیک */
+/* ت۳۰ — تایید مرورگر: طرح برگه (کلاسیک/مدرن) — تعویض از تنظیمات، امضاهای
+   بصری طرح مدرن (ریبون لبه بالا، پیل های سربرگ، نوار رنگی بالای ردیف ها،
+   پلاک قهرمان کپسولی)، تیتر دورهای بی کادر به درخواست کاربر، سازگاری تم
+   شبانه، و برگشت بی رگرسیون به کلاسیک */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
@@ -84,90 +85,95 @@ check(
   (await firstSheet.getAttribute('data-sheet-layout')) === 'modern',
 )
 
-/* ————— امضاهای بصری طرح مدرن متعادل — کادرهای نازک، بدون شلوغی ————— */
+/* ————— امضاهای بصری طرح مدرن — ریبون بالا، پیل های سربرگ، نوار بالای
+   ردیف ها و تیتر دورهای بی کادر ————— */
 const modern = await page.evaluate(() => {
   const sheet = document.querySelector('#pdf-sheet-1000')
   if (!sheet) return null
   const first = sheet.firstElementChild
   const header = sheet.querySelector('header')
-  const headerStyle = header ? getComputedStyle(header) : null
-  const rows = [...sheet.querySelectorAll('[dir="rtl"].flex.h-full')].slice(0, 6)
-  const rowWithTopStripe = rows.some((row) => {
+  // ریبون رنگی لبه بالا — امضای طرح مدرن؛ اولین عنصر برگه با ارتفاع ۶px
+  const ribbonHeight =
+    first && first.getAttribute('aria-hidden') === 'true'
+      ? parseFloat(getComputedStyle(first).height)
+      : -1
+  // پیل های کپسولی سربرگ — بج های وزن/کمربند/زمین/ساعت + آمارهای عمودی
+  const pills = [...(header?.querySelectorAll('span, div') ?? [])].filter(
+    (el) => getComputedStyle(el).borderTopLeftRadius === '999px',
+  ).length
+  const rows = [...sheet.querySelectorAll('[dir="rtl"].flex.h-full')].slice(0, 8)
+  // نوار رنگی لبه بالای ردیف ها — امضای ردیف مدرن
+  const stripedRows = rows.filter((row) => {
     const style = getComputedStyle(row)
     return parseFloat(style.borderTopWidth) >= 2.5 && style.borderTopStyle === 'solid'
-  })
+  }).length
   const sideBarRows = rows.filter((row) => {
     const kid = row.firstElementChild
     return kid && kid.getAttribute('aria-hidden') === 'true' && kid.getBoundingClientRect().width < 6
   }).length
-  // کادر نازک ۱px دور ردیف ها — امضای «یذره کادر» مدرن متعادل
-  const framedRows = rows.filter((row) => {
-    const style = getComputedStyle(row)
-    return (
-      parseFloat(style.borderTopWidth) === 1 &&
-      parseFloat(style.borderBottomWidth) === 1 &&
-      parseFloat(style.borderInlineStartWidth) === 1 &&
-      parseFloat(style.borderInlineEndWidth) === 1
+  // تیتر دورها — به درخواست کاربر هیچ کادر و پس زمینه ای دور
+  // «یک چهارم نهایی/نیمه نهایی/فینال» نمی نشیند؛ خود عنصر و والدش بی کادرند
+  const frameless = (style) =>
+    parseFloat(style.borderTopWidth) === 0 &&
+    parseFloat(style.borderBottomWidth) === 0 &&
+    parseFloat(style.borderLeftWidth) === 0 &&
+    parseFloat(style.borderRightWidth) === 0 &&
+    (style.backgroundColor === 'rgba(0, 0, 0, 0)' || style.backgroundColor === 'transparent')
+  function roundLabelState(labelText) {
+    const el = [...sheet.querySelectorAll('span, div')].find(
+      (node) => node.childElementCount === 0 && node.textContent?.trim() === labelText,
     )
-  }).length
-  const pills = [...sheet.querySelectorAll('header span')].filter((span) => {
-    const style = getComputedStyle(span)
-    return style.borderTopLeftRadius === '999px' && span.textContent?.trim().length > 0
-  }).length
-  const statLine = [...(header?.querySelectorAll('p') ?? [])].find(
-    (p) => p.textContent?.includes('شرکت کننده') && p.textContent?.includes('·'),
+    if (!el || !el.parentElement) return null
+    return {
+      self: frameless(getComputedStyle(el)),
+      parent: frameless(getComputedStyle(el.parentElement)),
+    }
+  }
+  const roundLabels = ['فینال', 'نیمه نهایی', 'یک چهارم نهایی'].map((text) => ({
+    text,
+    state: roundLabelState(text),
+  }))
+  // پلاک کپسولی «قهرمان» زیر فینال
+  const champion = [...sheet.querySelectorAll('div')].some(
+    (el) =>
+      el.childElementCount === 0 &&
+      el.textContent?.trim() === 'قهرمان' &&
+      getComputedStyle(el).borderTopLeftRadius === '999px',
   )
-  const statFrame = statLine ? parseFloat(getComputedStyle(statLine).borderTopWidth) : -1
-  // چیپ عنوان وزن — تنها اسپانی که کادر نازک ۱px و گوشه ۸ دارد (زمین/ساعت پر
-  // می گیرند و خط ندارند؛ کمربند بی کادر است)
-  const framedChips = [...(header?.querySelectorAll('span') ?? [])].filter((span) => {
-    const style = getComputedStyle(span)
-    return (
-      parseFloat(style.borderTopWidth) === 1 &&
-      parseFloat(style.borderTopLeftRadius) === 8 &&
-      (span.textContent?.trim().length ?? 0) > 0
-    )
-  }).length
   const sheetRect = sheet.getBoundingClientRect()
   return {
-    firstIsHeader: first?.tagName === 'HEADER',
+    ribbonHeight,
     hasHeader: Boolean(header),
-    headerRuleWidth: headerStyle ? parseFloat(headerStyle.borderBottomWidth) : -1,
-    rowWithTopStripe,
-    sideBarRows,
-    framedRows,
-    rowCount: rows.length,
     pills,
-    statLine: Boolean(statLine),
-    statFrame,
-    framedChips,
+    stripedRows,
+    rowCount: rows.length,
+    sideBarRows,
+    roundLabels,
+    champion,
     sheetHeight: sheetRect.height,
     overflow: sheet.scrollHeight - sheet.clientHeight,
   }
 })
 check('modern: geometry measurable', Boolean(modern))
 if (modern) {
-  check('modern: no ribbon strip — header is the first element', modern.firstIsHeader)
+  check(
+    `modern: theme ribbon strip sits on the top edge (${modern.ribbonHeight}px)`,
+    modern.ribbonHeight === 6,
+  )
   check('modern: header renders', modern.hasHeader)
+  check(`modern: capsule pills back in the header (${modern.pills})`, modern.pills >= 4)
   check(
-    `modern: thin soft rule under header (${modern.headerRuleWidth}px — not the heavy classic one)`,
-    modern.headerRuleWidth > 0 && modern.headerRuleWidth < 2,
+    `modern: athlete rows carry the colored top stripe (${modern.stripedRows}/${modern.rowCount})`,
+    modern.stripedRows >= 2,
   )
-  check('modern: rows carry no thick top stripes', !modern.rowWithTopStripe)
-  check(`modern: no mirrored side bars left in rows (${modern.sideBarRows})`, modern.sideBarRows === 0)
-  check(
-    `modern: rows sit inside thin 1px frames (${modern.framedRows}/${modern.rowCount})`,
-    modern.rowCount > 0 && modern.framedRows === modern.rowCount,
-  )
-  check(`modern: no capsule pills in header (${modern.pills})`, modern.pills === 0)
-  check(
-    `modern: stats line framed with a thin border (${modern.statFrame}px)`,
-    modern.statLine && modern.statFrame === 1,
-  )
-  check(
-    `modern: weight title sits in a thin-framed chip (${modern.framedChips} framed chip)`,
-    modern.framedChips >= 1,
-  )
+  check(`modern: no mirrored side bars in rows (${modern.sideBarRows})`, modern.sideBarRows === 0)
+  for (const label of modern.roundLabels) {
+    check(
+      `modern: round label «${label.text}» stays frameless`,
+      Boolean(label.state) && label.state.self && label.state.parent,
+    )
+  }
+  check('modern: champion capsule below the final', modern.champion)
   check(
     `modern: sheet still A4 fixed (${modern.sheetHeight}px, overflow ${modern.overflow}px)`,
     Math.abs(modern.sheetHeight - 770) <= 1 && modern.overflow <= 1,
@@ -189,9 +195,10 @@ const nightModern = await page.evaluate(() => {
   const matBadge = [...(header?.querySelectorAll('span') ?? [])].find(
     (span) => span.textContent?.trim() === 'زمین ۱',
   )
+  const first = sheet.firstElementChild
   return {
     layout: sheet.getAttribute('data-sheet-layout'),
-    firstIsHeader: sheet.firstElementChild?.tagName === 'HEADER',
+    ribbonBg: first ? getComputedStyle(first).backgroundColor : null,
     body: getComputedStyle(sheet).backgroundColor,
     matBadgeBg: matBadge ? getComputedStyle(matBadge).backgroundColor : null,
   }
@@ -200,7 +207,7 @@ check(
   `night theme + modern layout: mat badge takes the theme color (${nightModern?.matBadgeBg})`,
   Boolean(nightModern) &&
     nightModern.layout === 'modern' &&
-    nightModern.firstIsHeader &&
+    nightModern.ribbonBg === 'rgb(47, 107, 216)' &&
     nightModern.body === 'rgb(14, 26, 46)' &&
     nightModern.matBadgeBg === 'rgb(47, 107, 216)',
 )
