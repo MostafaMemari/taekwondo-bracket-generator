@@ -26,14 +26,6 @@ interface SlotCardProps {
   barSide?: BarSide
   /** جدول دستی: کلیک روی خانه، ورودی نام/مربی را باز می کند */
   manualEdit?: ManualEditProps
-  /**
-   * گوشه «استراحت»: اسلات همسایه (صاحب کنونی استراحت). وقتی پر شود این خانه
-   * هم قابل کشیدن است هم قابل رها کردن — کشیدن استراحت روی هر هنرجو یا رها
-   * کردن هنرجو روی این گوشه، جای صاحب کنونی استراحت و مقصد را عوض می کند.
-   * خود اسلات استراحت ثابت می ماند (ساختار جدول دست نمی خورد) پس شماره
-   * مسابقه ها همیشه درست می ماند.
-   */
-  restSwapSlotId?: string | null
 }
 
 export function SlotCard({
@@ -46,43 +38,39 @@ export function SlotCard({
   showCoach,
   barSide,
   manualEdit,
-  restSwapSlotId,
 }: SlotCardProps) {
-  const restSwap = occupant.kind === 'bye' && restSwapSlotId ? restSwapSlotId : undefined
+  const isBye = occupant.kind === 'bye'
 
-  // rest slots («استراحت») are structural — a plain rest corner still accepts
-  // nothing, but when it has a sibling owner it accepts the drop on the
-  // sibling's behalf: dropping an athlete here swaps the two of them
+  // هر خانه پذیرنده رها کردن است — خانه استراحت هم شناسه خودش را می فرستد تا
+  // رها کردن هنرجو روی آن، دو خانه را کامل عوض کند
   const { setNodeRef, isOver } = useDroppable({
-    id: restSwap ? `rest-${slotId}` : slotId,
-    disabled: restSwap ? false : occupant.kind !== 'participant',
-    data: { slotId: restSwap ?? slotId },
+    id: isBye ? `rest-${slotId}` : slotId,
+    disabled: !isBye && occupant.kind !== 'participant',
+    data: { slotId },
   })
 
-  // the rest corner itself is draggable — carry the sibling owner's slot id
-  // so the swap logic stays a plain participant-to-participant move
+  // گوشه «استراحت» خودش قابل کشیدن است — شناسه اسلات خودش را حمل می کند تا
+  // روی هر هنرجویی که رها شود، استراحت همان جا بنشیند
   const restDrag = useDraggable({
     id: `rest-chip-${slotId}`,
-    data: { slotId: restSwap ?? slotId, isRest: true },
-    disabled: !restSwap,
+    data: { slotId, isRest: true },
+    disabled: !isBye,
   })
 
   function renderContent() {
     if (occupant.kind === 'bye') {
-      const row = <ByeRow side={side} />
-      if (!restSwap) return row
       return (
         <div
           ref={restDrag.setNodeRef}
           {...restDrag.listeners}
           {...restDrag.attributes}
-          title="بکش و روی هنرجوی دلخواه رها کن تا استراحت به او برسد — یا هنرجو را روی همین خانه رها کن"
-          aria-label="انتقال استراحت به هنرجوی دیگر"
+          title="بکش و روی هر خانه ای رها کن تا استراحت همان جا بنشیند"
+          aria-label="انتقال استراحت"
           className={`h-full w-full cursor-grab touch-none transition-opacity active:cursor-grabbing ${
             restDrag.isDragging ? 'opacity-30' : ''
           }`}
         >
-          {row}
+          <ByeRow side={side} />
         </div>
       )
     }

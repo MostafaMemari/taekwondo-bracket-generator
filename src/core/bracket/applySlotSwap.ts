@@ -1,8 +1,10 @@
 import type { SlotAssignments } from '../types.ts'
 
 /**
- * Swap two slot occupants. Rest slots («استراحت») are structural — a
- * participant must never land on one, otherwise the walkover math breaks.
+ * Swap two slot occupants — participant with participant, or participant
+ * with rest («استراحت»). The structure (matchId / matchNumber) never moves;
+ * only the two occupants trade places, so the numbering always stays right.
+ * A rest-to-rest swap is a no-op and is rejected.
  */
 export function applySlotSwap(
   assignments: SlotAssignments,
@@ -12,8 +14,8 @@ export function applySlotSwap(
   const fromOccupant = assignments[fromSlotId]
   const toOccupant = assignments[toSlotId]
   if (!fromOccupant || !toOccupant || fromSlotId === toSlotId) return null
-  if (fromOccupant.kind !== 'participant') return null
-  if (toOccupant.kind !== 'participant') return null
+  // حداقل یک طرف باید هنرجو باشد — جابه‌جایی استراحت با استراحت بی معنی است
+  if (fromOccupant.kind !== 'participant' && toOccupant.kind !== 'participant') return null
 
   return {
     ...assignments,

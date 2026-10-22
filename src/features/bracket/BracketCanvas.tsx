@@ -129,9 +129,9 @@ export function BracketCanvas({
       dragJustEnded.current = false;
     }, 250);
     const fromSlotId = slotIdFrom(event);
-    // مقصد همیشه از data می آید: خانه هنرجو شناسه خودش را می فرستد و گوشه
-    // «استراحت» شناسه همسایه اش (صاحب کنونی استراحت) — پس رها کردن روی استراحت
-    // هم همان تعویض دو هنرجو می شود و ساختار جدول دست نمی خورد (شماره ها اوکی می مانند)
+    // هر دو طرف شناسه اسلات خودشان را می فرستند — رها کردن استراحت روی هر
+    // هنرجو (یا برعکس) دو خانه را کامل عوض می کند؛ استراحت همان جا می نشیند
+    // و ساختار جدول دست نمی خورد (شماره ها اوکی می مانند)
     const overData = event.over?.data.current as { slotId?: string } | undefined;
     const toSlotId =
       overData?.slotId ?? (typeof event.over?.id === "string" ? event.over.id : undefined);
@@ -149,7 +149,6 @@ export function BracketCanvas({
     slotId: string,
     side: SlotSide,
     barSide?: "left" | "right",
-    restSwapSlotId?: string | null,
   ) {
     const occupant = draw.assignments[slotId];
     const participant =
@@ -164,7 +163,6 @@ export function BracketCanvas({
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
         barSide={barSide}
-        restSwapSlotId={restSwapSlotId}
         manualEdit={
           isManual && participant
             ? {
@@ -192,17 +190,9 @@ export function BracketCanvas({
     if (leaf?.kind !== "slot") {
       return <PositionRow side={side} />;
     }
-    // گوشه «استراحت» — همسایه اش (صاحب کنونی استراحت) مقصد تعویض است تا
-    // کشیدن استراحت روی هر هنرجو یا رها کردن هنرجو روی این گوشه، استراحت را
-    // منتقل کند؛ اسلات استراحت سر جایش می ماند و شماره مسابقه ها ثابت می ماند
-    let restSwapSlotId: string | undefined;
-    if (match) {
-      const siblingSlotId =
-        match.topSlotId === leaf.slotId ? match.bottomSlotId : match.topSlotId;
-      const sibling = siblingSlotId ? draw.assignments[siblingSlotId] : undefined;
-      if (siblingSlotId && sibling?.kind === "participant") restSwapSlotId = siblingSlotId;
-    }
-    return renderSlot(leaf.slotId, side, barSide, restSwapSlotId);
+    // خانه «استراحت» خودش قابل کشیدن است و هر خانه ای هم پذیرای رها کردن —
+    // فقط دو خانه جابه جا می شوند؛ ساختار دست نمی خورد و شماره ها ثابت می مانند
+    return renderSlot(leaf.slotId, side, barSide);
   }
 
   const activeOccupant = activeSlotId ? draw.assignments[activeSlotId] : undefined;
