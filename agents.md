@@ -117,6 +117,24 @@
   دست نخورد؛ برگه خودش از store می خواند و `data-sheet-layout` روی ریشه هر
   صفحه می نهد — همه مسیرهای چاپ/عکس/PDF/پیش نمایش با یک کلید از تنظیمات
   عوض می شوند.
+- **نوع قرعه کشی و چیدمان استراحت (v18) — دو انتخاب مستقل از تنظیمات:**
+  `drawTypeId` و `byePlacementId` در store از `src/lib/drawModes.ts` می آیند
+  (نسخه persist ۱۸؛ ذخیره های قدیمی با پیش فرض ها شروع می کنند). با ذخیره
+  تنظیمات، اکشن `redrawAllRealGroups` همه جدول های واقعی و باران مدال را با
+  گزینه های تازه از نو می چیند — جدول های دستی (اسامی تایپی) و شماره های دستی
+  دست نمی خورند و ساختار باران مدال با bronze خودش بازسازی می شود.
+  «نوع قرعه کشی»: `coachSeeded` «جداسازی هم تیمی ها» (پیش فرض — همان رفتار
+  همیشگی: دو هنرجوی یک مربی اینور و اونور، سه نفر → دو نفر در نیمه نهایی و
+  استراحت اول با مربی پرشمار — مسیر assignByes + distributeByCoach) و
+  `random` «کاملا تصادفی» (فیشر-یتس درون generateGroupDraw؛ پُر کردن خانه های
+  بای گیرنده بعد خانه های آزاد — بدون هیچ قاعده مربی). «چیدمان استراحت»:
+  `mirror` «آینه ای دو طرف» (پیش فرض — آینه هر نیمه حول وسطش) و `belowName`
+  «همیشه زیر اسم» (buildBracketTree آینه را برمی دارد: splitRaw همه جا 'top' —
+  استراحت در هر جفت دور یک خانه پایین است و اسم بالا؛ تقسیم چپ/راست با قانون
+  «استراحت اضافی سمت چپ» در هر دو حالت یکسان است). مسیر ساخت جدول های باران
+  مدال (createMedalRainTables) همیشه coachSeeded می فرستد تا سواپ های پیش
+  نمایش به هم نریزد. SlotCard و MatchBox برای تست مرورگر
+  data-slot-id/data-rest/data-match-id می دهند.
 - **نام هیچ وقت «…» نمی گیرد:** هر جای برنامه که نام هنرجو/مربی/برچسب دور
   در خانه ای محدود می نشیند از FitText (src/components) استفاده می کنی —
   فونت تا جا شدن کوچک می شود (کف minSize) و truncate ممنوع است.
@@ -138,10 +156,13 @@ src/
 │   ├── types.ts             ← مدل داده: Participant، CategoryGroup، GroupDraw، BracketStructure
 │   ├── id.ts                ← createId برای شناسه های یکتا
 │   ├── bracket/
-│   │   ├── buildBracketTree.ts   ← ساخت درخت حذفی به توان ۲ (۱..۶۴ نفر)
+│   │   ├── buildBracketTree.ts   ← ساخت درخت حذفی به توان ۲ (۱..۶۴ نفر) +
+│   │                               گزینه byePlacement ('mirror' آینه هر نیمه /
+│   │                               'belowName' استراحت همیشه زیر اسم)
 │   │   ├── byeStrategy.ts        ← جای گذاری بای ها بدون برخورد هم تیمی
 │   │   ├── coachSeparationStrategy.ts ← قانون استراحت مربی (بیشترین هنرجو اولویت بای)
-│   │   ├── generateGroupDraw.ts  ← ترکیب همه: ساخت قرعه یک وزن (+ گزینه bronze)
+│   │   ├── generateGroupDraw.ts  ← ترکیب همه: ساخت قرعه یک وزن (+ گزینه های
+│   │                               bronze و drawType و byePlacement)
 │   │   ├── medalRain.ts          ← باران مدال: medalRainPoolSizes (۴+باقیمانده،
 │   │                               باقیمانده ۱ → ۳+۲) + splitMedalRainPools
 │   │                               (قرعه تصادفی + جداسازی هم مربی ها بین جدول ها،
@@ -178,7 +199,9 @@ src/
 │                              tableThemeId (تم بصری جدول ها)، matchChipStyle
 │                              (ظاهر بج شماره مسابقه)، matchChipSize
 │                              (اندازه بج)، showChampion (کلید نمایش پلاک
-│                              قهرمان، طرح برگه — نسخه فعلی: ۱۷)،
+│                              قهرمان)، sheetLayout (طرح برگه)، drawTypeId
+│                              (نوع قرعه کشی) و byePlacementId (چیدمان استراحت)
+│                              — نسخه فعلی: ۱۸ —
 │                              exportJob (یک کار واحد pdf/image)، meta، مهاجرت نسخه
 │                              (migrate بعد از بازسازی draws،
 │                              مسابقه رده بندی وزن های باران مدال را دوباره می چسباند)
@@ -198,6 +221,9 @@ src/
 │   │                           پر/توخالی) + رنگ دلخواه یا «همراه تم»؛ پالت و
 │   │                           شعاع گوشه و متن کنتراست خودکار می دهد؛ normalize
 │   │                           مقدار خراب را پیش فرض می کند (react ندارد — تست node)
+│   ├── drawModes.ts         ← نوع قرعه کشی (coachSeeded/random) و چیدمان استراحت
+│   │                           (mirror/belowName) + نام و توضیح فارسی هر حالت +
+│   │                           normalize — react ندارد، تست node دارد (ت۳۴)
 │   ├── hooks.ts             ← useParticipantsById + useScheduleModel (یک بار
 │   │                           buildSchedule برای built + سه نقشه شماره)
 │   ├── drawStats.ts         ← realMatchCount (نفرات منهای ۱) و برچسب option ها
@@ -268,9 +294,10 @@ src/
     │   │                          از [data-pdf-group] .pdf-page صفحه به صفحه می آیند
     │   ├── PrintPreviewPage.tsx  ← پیش نمایش چاپ (#pdf-preview)
     │   └── PrintToolbar.tsx      ← نوار مشترک پیش نمایش ها (بازگشت/خلاصه/PDF/چاپ)
-    └── settings/SettingsModal.tsx ← عنوان/زیرعنوان/لوگو (downscale 320px) + تم جدول ها
-                                 + ظاهر شماره مسابقه — همه با «ذخیره» اعمال و با
-                                 «انصراف» برمی گردد
+    └── settings/SettingsModal.tsx ← عنوان/زیرعنوان/لوگو (downscale 320px) + نوع
+                                 قرعه کشی و چیدمان استراحت (چهار کارت data-draw-mode)
+                                 + طرح برگه + تم جدول ها + ظاهر شماره مسابقه —
+                                 همه با «ذخیره» اعمال و با «انصراف» برمی گردد
 ```
 
 ### ۴.۲. جریان داده

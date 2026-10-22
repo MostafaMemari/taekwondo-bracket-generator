@@ -88,8 +88,10 @@ const state = {
     matchChipSize: 'normal',
     showChampion: true,
     sheetLayout: 'classic',
+    drawTypeId: 'coachSeeded',
+    byePlacementId: 'mirror',
   },
-  version: 17,
+  version: 18,
 }
 
 const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><script>

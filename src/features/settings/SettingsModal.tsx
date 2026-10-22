@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Check, ImageUp, Trash2, X } from 'lucide-react'
 import { useTournament, type TournamentMeta } from '../../store/tournamentStore.ts'
 import { Button } from '../../components/Button.tsx'
@@ -30,6 +30,12 @@ import {
   type MatchChipSize,
   type MatchChipStyle,
 } from '../../lib/matchChipStyles.ts'
+import {
+  byePlacements,
+  drawTypes,
+  type ByePlacementId,
+  type DrawTypeId,
+} from '../../lib/drawModes.ts'
 
 interface SettingsModalProps {
   open: boolean
@@ -73,17 +79,21 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const matchChipSize = useTournament((state) => state.matchChipSize)
   const showChampion = useTournament((state) => state.showChampion)
   const sheetLayout = useTournament((state) => state.sheetLayout)
+  const drawTypeId = useTournament((state) => state.drawTypeId)
+  const byePlacementId = useTournament((state) => state.byePlacementId)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}|${drawTypeId}|${byePlacementId}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
       initialChipSize={matchChipSize}
       initialShowChampion={showChampion}
       initialSheetLayout={sheetLayout}
+      initialDrawTypeId={drawTypeId}
+      initialByePlacementId={byePlacementId}
       onClose={onClose}
     />
   )
@@ -96,6 +106,8 @@ function SettingsForm({
   initialChipSize,
   initialShowChampion,
   initialSheetLayout,
+  initialDrawTypeId,
+  initialByePlacementId,
   onClose,
 }: {
   initial: TournamentMeta
@@ -104,6 +116,8 @@ function SettingsForm({
   initialChipSize: ReturnType<typeof useTournament.getState>['matchChipSize']
   initialShowChampion: boolean
   initialSheetLayout: ReturnType<typeof useTournament.getState>['sheetLayout']
+  initialDrawTypeId: ReturnType<typeof useTournament.getState>['drawTypeId']
+  initialByePlacementId: ReturnType<typeof useTournament.getState>['byePlacementId']
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
@@ -112,6 +126,8 @@ function SettingsForm({
   const setMatchChipSize = useTournament((state) => state.setMatchChipSize)
   const setShowChampion = useTournament((state) => state.setShowChampion)
   const setSheetLayout = useTournament((state) => state.setSheetLayout)
+  const setDrawTypeId = useTournament((state) => state.setDrawTypeId)
+  const setByePlacementId = useTournament((state) => state.setByePlacementId)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
@@ -121,6 +137,8 @@ function SettingsForm({
   const [chipSize, setChipSize] = useState<MatchChipSize>(normalizeMatchChipSize(initialChipSize))
   const [championVisible, setChampionVisible] = useState(initialShowChampion)
   const [sheetLayoutId, setLayoutId] = useState<SheetLayoutId>(initialSheetLayout)
+  const [drawType, setDrawType] = useState<DrawTypeId>(initialDrawTypeId)
+  const [byePlacement, setByePlacement] = useState<ByePlacementId>(initialByePlacementId)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -149,6 +167,8 @@ function SettingsForm({
     setMatchChipSize(chipSize)
     setShowChampion(championVisible)
     setSheetLayout(sheetLayoutId)
+    setDrawTypeId(drawType)
+    setByePlacementId(byePlacement)
     onClose()
   }
 
@@ -286,6 +306,43 @@ function SettingsForm({
                 }}
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              نوع قرعه کشی
+              <span className="ms-2 text-xs font-normal text-muted">قانون چیدن هنرجوها روی برگه</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2.5">
+              {drawTypes.map((mode) => (
+                <DrawTypeCard
+                  key={mode.id}
+                  mode={mode}
+                  selected={drawType === mode.id}
+                  onSelect={() => setDrawType(mode.id)}
+                />
+              ))}
+            </div>
+
+            <p className="mb-1.5 mt-3 text-xs font-medium text-ink-800">چیدمان استراحت</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {byePlacements.map((mode) => (
+                <ByePlacementCard
+                  key={mode.id}
+                  mode={mode}
+                  selected={byePlacement === mode.id}
+                  onSelect={() => setByePlacement(mode.id)}
+                />
+              ))}
+            </div>
+
+            <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+              در حالت جداسازی، دو هنرجوی یک مربی اینور و اونور جدول می افتند؛ اگر مربی سه هنرجو داشته
+              باشد دو نفرشان در نیمه نهایی به هم می خورند تا برنده به فینال برسد و استراحت ها اول به
+              مربی ای می رسد که بیشترین هنرجو را دارد. در حالت تصادفی فقط فیش ها بُر می خورد. با ذخیره،
+              همه جدول های واقعی و باران مدال از نو قرعه کشی می شوند؛ جدول های دستی و شماره های دستی
+              دست نمی خورند.
+            </p>
           </div>
 
           <div>
@@ -515,6 +572,124 @@ function SettingsForm({
         </footer>
       </div>
     </div>
+  )
+}
+
+/** ردیف ماکت — خانه پر (اسم) یا خانه استراحت (خط چین) */
+function MockRow({ rest = false, tone = 'athlete' }: { rest?: boolean; tone?: 'athlete' | 'red' | 'blue' }) {
+  if (rest) {
+    return <span aria-hidden className="h-2.5 rounded-[3px] border border-dashed border-slate-300" />
+  }
+  const toneClass =
+    tone === 'red' ? 'bg-red-400' : tone === 'blue' ? 'bg-blue-400' : 'bg-slate-400'
+  return <span aria-hidden className={`h-2.5 rounded-[3px] ${toneClass}`} />
+}
+
+function ModeCardShell({
+  selected,
+  onSelect,
+  testId,
+  name,
+  hint,
+  children,
+}: {
+  selected: boolean
+  onSelect: () => void
+  testId: string
+  name: string
+  hint: string
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      data-draw-mode={testId}
+      className={`rounded-xl border p-2.5 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div className="flex items-start gap-2.5">
+        {children}
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-ink-900">{name}</p>
+          <p className="mt-0.5 text-[11px] leading-4 text-muted">{hint}</p>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+/**
+ * کارت نوع قرعه کشی — ماکت: جداسازی هم تیمی ها دو خانه هم رنگ را قطری (دو طرف
+ * جدول) می نشاند و تصادفی ردیف های بی قاعده را؛ انتخاب با ذخیره اعمال می شود.
+ */
+function DrawTypeCard({
+  mode,
+  selected,
+  onSelect,
+}: {
+  mode: (typeof drawTypes)[number]
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <ModeCardShell selected={selected} onSelect={onSelect} testId={mode.id} name={mode.name} hint={mode.hint}>
+      {mode.id === 'coachSeeded' ? (
+        <span aria-hidden className="mt-0.5 grid w-10 shrink-0 grid-cols-2 gap-1">
+          <MockRow tone="red" />
+          <MockRow />
+          <MockRow />
+          <MockRow tone="red" />
+        </span>
+      ) : (
+        <span aria-hidden className="mt-0.5 flex w-10 shrink-0 flex-col gap-1">
+          <MockRow />
+          <MockRow tone="blue" />
+          <MockRow tone="red" />
+          <MockRow />
+        </span>
+      )}
+    </ModeCardShell>
+  )
+}
+
+/**
+ * کارت چیدمان استراحت — ماکت: آینه ای دو خانه استراحت را قرینه (بالا/پایین دو
+ * نیمه) و «همیشه زیر اسم» هر دو را زیر اسم نشان می دهد.
+ */
+function ByePlacementCard({
+  mode,
+  selected,
+  onSelect,
+}: {
+  mode: (typeof byePlacements)[number]
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <ModeCardShell selected={selected} onSelect={onSelect} testId={mode.id} name={mode.name} hint={mode.hint}>
+      <span aria-hidden className="mt-0.5 grid w-10 shrink-0 grid-cols-2 gap-1">
+        {mode.id === 'mirror' ? (
+          <>
+            <MockRow />
+            <MockRow rest />
+            <MockRow rest />
+            <MockRow />
+          </>
+        ) : (
+          <>
+            <MockRow />
+            <MockRow rest />
+            <MockRow />
+            <MockRow rest />
+          </>
+        )}
+      </span>
+    </ModeCardShell>
   )
 }
 

@@ -1,3 +1,4 @@
+import type { ByePlacementId } from '../../lib/drawModes.ts'
 import type {
   BracketStructure,
   BracketStructureNode,
@@ -36,6 +37,7 @@ function splitRaw(
   mode: SplitMode,
   rows: { from: number; to: number },
   wingRows: number,
+  byePlacement: ByePlacementId,
 ): RawNode {
   if (capacity === 1) {
     return { kind: 'leaf', count }
@@ -46,11 +48,13 @@ function splitRaw(
       ? Math.min(half, Math.ceil(count / 2))
       : Math.max(count - half, Math.floor(count / 2))
   const mid = rows.from + half
+  const childMode = (from: number, to: number): SplitMode =>
+    byePlacement === 'belowName' ? 'top' : mirrorMode(from, to, wingRows)
   return {
     kind: 'match',
     count,
-    left: splitRaw(leftCount, half, mirrorMode(rows.from, mid, wingRows), { from: rows.from, to: mid }, wingRows),
-    right: splitRaw(count - leftCount, half, mirrorMode(mid, rows.to, wingRows), { from: mid, to: rows.to }, wingRows),
+    left: splitRaw(leftCount, half, childMode(rows.from, mid), { from: rows.from, to: mid }, wingRows, byePlacement),
+    right: splitRaw(count - leftCount, half, childMode(mid, rows.to), { from: mid, to: rows.to }, wingRows, byePlacement),
   }
 }
 
@@ -63,19 +67,37 @@ function mirrorMode(from: number, to: number, wingRows: number): SplitMode {
  * دو بال برگه — هر دو با جهت top ساخته می شوند (سرریز ورزشکار به بالای نیمه،
  * استراحت ها آینه حول وسط همان نیمه) و ریشه آن ها را با قانون «استراحت
  * اضافی سمت چپ» به هم می دوزد: نیمه اول floor(n/2) ورزشکار می گیرد.
+ * حالت «همیشه زیر اسم» آینه را برداشت می دارد تا استراحت در هر جفت خانه
+ * پایین بنشیند — اسم بالا، استراحت زیر آن.
  */
-function buildWingedTree(participantCount: number, bracketSize: number): RawNode {
+function buildWingedTree(
+  participantCount: number,
+  bracketSize: number,
+  byePlacement: ByePlacementId,
+): RawNode {
   const wingRows = bracketSize / 2
   const leftCount = Math.floor(participantCount / 2)
   return {
     kind: 'match',
     count: participantCount,
-    left: splitRaw(leftCount, wingRows, 'top', { from: 0, to: wingRows }, wingRows),
-    right: splitRaw(participantCount - leftCount, wingRows, 'top', { from: 0, to: wingRows }, wingRows),
+    left: splitRaw(leftCount, wingRows, 'top', { from: 0, to: wingRows }, wingRows, byePlacement),
+    right: splitRaw(
+      participantCount - leftCount,
+      wingRows,
+      'top',
+      { from: 0, to: wingRows },
+      wingRows,
+      byePlacement,
+    ),
   }
 }
 
-export function buildBracketTree(participantCount: number): BracketStructure {
+export interface BuildBracketOptions {
+  /** جایگاه استراحت ها — پیش فرض آینه ای دو طرف (رفتار همیشگی) */
+  byePlacement?: ByePlacementId
+}
+
+export function buildBracketTree(participantCount: number, options: BuildBracketOptions = {}): BracketStructure {
   if (participantCount < 1) {
     throw new Error('Cannot build a bracket for an empty group')
   }
@@ -88,7 +110,7 @@ export function buildBracketTree(participantCount: number): BracketStructure {
 
   const bracketSize = 2 ** Math.ceil(Math.log2(participantCount))
   const totalRounds = Math.round(Math.log2(bracketSize))
-  const root = buildWingedTree(participantCount, bracketSize)
+  const root = buildWingedTree(participantCount, bracketSize, options.byePlacement ?? 'mirror')
 
   const leaves: StructureLeaf[] = []
   const matches: StructureMatch[] = []

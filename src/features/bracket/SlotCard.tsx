@@ -127,6 +127,8 @@ export function SlotCard({
   return (
     <div
       ref={setNodeRef}
+      data-slot-id={slotId}
+      data-rest={isBye ? 'true' : undefined}
       className={`h-full w-full rounded-md transition-shadow ${
         isOver ? 'ring-2 ring-mat-600 ring-offset-1' : ''
       }`}

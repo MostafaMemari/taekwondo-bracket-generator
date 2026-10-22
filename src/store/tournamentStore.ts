@@ -17,6 +17,12 @@ import {
   type MatchChipStyle,
 } from '../lib/matchChipStyles.ts'
 import { isTableThemeId, type TableThemeId } from '../lib/tableThemes.ts'
+import {
+  normalizeByePlacementId,
+  normalizeDrawTypeId,
+  type ByePlacementId,
+  type DrawTypeId,
+} from '../lib/drawModes.ts'
 import { normalizeSheetLayoutId, type SheetLayoutId } from '../lib/sheetLayouts.ts'
 import type {
   CategoryGroup,
@@ -192,6 +198,13 @@ interface TournamentState {
    * مربی ها و اولویت استراحت سر جایش است. جدول های دستی قرعه ندارند.
    */
   redrawGroup: (groupId: string) => void
+  /**
+   * قرعه کشی دوباره همه جدول های واقعی و باران مدال با تنظیمات فعلی قرعه —
+   * برای وقتی که نوع قرعه کشی یا چیدمان استراحت از تنظیمات عوض می شود.
+   * جدول های دستی که اسامی تایپی دارند دست نمی خورند و شماره های دستی هم
+   * می مانند (ساختار برگه ها عوض نمی شود).
+   */
+  redrawAllRealGroups: () => void
 
   /** ساخت جدول دستی خالی — همان مسیر قرعه کشی داده واقعی */
   createManualTable: (input: { size: number; title: string; matLabel: string; attendTime: string }) => void
@@ -285,16 +298,42 @@ interface TournamentState {
    */
   sheetLayout: SheetLayoutId
   setSheetLayout: (layout: SheetLayoutId) => void
+  /**
+   * نوع قرعه کشی — جداسازی هم تیمی ها (پیش فرض؛ دو هنرجوی یک مربی دو طرف
+   * جدول، سه نفر: دو نفر در نیمه نهایی و استراحت با مربی پرشمار) یا کاملا
+   * تصادفی (فیش ها بُر می خورد). انتخاب شخصی است؛ با تغییرش همه قرعه های
+   * واقعی و باران مدال از نو چیده می شود — جدول های دستی دست نمی خورند.
+   */
+  drawTypeId: DrawTypeId
+  setDrawTypeId: (id: DrawTypeId) => void
+  /**
+   * چیدمان استراحت — آینه ای دو طرف (پیش فرض؛ تقسیم چپ و راست حول وسط هر
+   * نیمه) یا همیشه زیر اسم (استراحت در هر جفت خانه پایین، اسم بالا). با
+   * تغییرش مثل نوع قرعه همه جدول های واقعی از نو چیده می شوند.
+   */
+  byePlacementId: ByePlacementId
+  setByePlacementId: (id: ByePlacementId) => void
 }
 
 const historyLimit = 40
 
-function buildDraws(participants: Participant[]): Record<string, GroupDraw> {
+/** گزینه های قرعه کشی از تنظیمات فعلی — به generateGroupDraw پاس داده می شود */
+function drawOptions(
+  state: { drawTypeId: DrawTypeId; byePlacementId: ByePlacementId },
+  bronze = false,
+): { bronze: boolean; drawType: DrawTypeId; byePlacement: ByePlacementId } {
+  return { bronze, drawType: state.drawTypeId, byePlacement: state.byePlacementId }
+}
+
+function buildDraws(
+  participants: Participant[],
+  options: { drawType?: DrawTypeId; byePlacement?: ByePlacementId } = {},
+): Record<string, GroupDraw> {
   const participantsById = Object.fromEntries(participants.map((p) => [p.id, p]))
   return Object.fromEntries(
     groupByCategory(participants).map((group) => [
       group.id,
-      generateGroupDraw(group, participantsById, tournamentRules),
+      generateGroupDraw(group, participantsById, tournamentRules, options),
     ]),
   )
 }
@@ -334,13 +373,29 @@ export const useTournament = create<TournamentState>()(
       // طرح برگه پیش فرض کلاسیک است — ظاهر همیشگی دست نخورده می ماند
       sheetLayout: 'classic' as SheetLayoutId,
       setSheetLayout: (layout) => set({ sheetLayout: normalizeSheetLayoutId(layout) }),
+      // نوع قرعه کشی پیش فرض جداسازی هم تیمی ها است — همان رفتار همیشگی
+      drawTypeId: 'coachSeeded' as DrawTypeId,
+      setDrawTypeId: (id) => {
+        const next = normalizeDrawTypeId(id)
+        if (next === get().drawTypeId) return
+        set({ drawTypeId: next })
+        get().redrawAllRealGroups()
+      },
+      // چیدمان استراحت پیش فرض آینه ای دو طرف است — همان رفتار همیشگی
+      byePlacementId: 'mirror' as ByePlacementId,
+      setByePlacementId: (id) => {
+        const next = normalizeByePlacementId(id)
+        if (next === get().byePlacementId) return
+        set({ byePlacementId: next })
+        get().redrawAllRealGroups()
+      },
 
       importRoster: (fileName, roster) =>
         set({
           fileName,
           participants: roster.participants,
           issues: roster.issues,
-          draws: buildDraws(roster.participants),
+          draws: buildDraws(roster.participants, drawOptions(get())),
           importedAt: new Date().toISOString(),
           page: 'groups',
           selectedGroupId: null,
@@ -629,9 +684,39 @@ export const useTournament = create<TournamentState>()(
           { ...draw.group, participantIds: renumbered.map((participant) => participant.id) },
           pool,
           tournamentRules,
-          { bronze },
+          drawOptions(get(), bronze),
         )
         set({ draws: { ...get().draws, [groupId]: next } })
+      },
+
+      redrawAllRealGroups: () => {
+        const participantsById: Record<string, Participant> = {}
+        for (const participant of get().participants) participantsById[participant.id] = participant
+        const current = get().draws
+        const next: Record<string, GroupDraw> = {}
+        let touched = false
+        for (const [groupId, draw] of Object.entries(current)) {
+          // جدول های دستی اسامی تایپی دارند — ساختار و نام ها دست نمی خورد
+          if (isManualGroupId(groupId)) {
+            next[groupId] = draw
+            continue
+          }
+          const members = draw.group.participantIds
+            .map((id) => participantsById[id])
+            .filter((participant): participant is Participant => Boolean(participant))
+          if (members.length === 0) {
+            next[groupId] = draw
+            continue
+          }
+          touched = true
+          next[groupId] = generateGroupDraw(
+            draw.group,
+            participantsById,
+            tournamentRules,
+            drawOptions(get(), Boolean(get().medalRainTables[groupId]?.bronze)),
+          )
+        }
+        if (touched) set({ draws: next })
       },
 
       createManualTable: ({ size, title, matLabel, attendTime }) => {
@@ -666,7 +751,7 @@ export const useTournament = create<TournamentState>()(
           weightCategory: weightLabel,
           participantIds,
         }
-        const draw = generateGroupDraw(group, participantsById, tournamentRules)
+        const draw = generateGroupDraw(group, participantsById, tournamentRules, drawOptions(get()))
         set({
           participants: [...get().participants, ...created],
           draws: { ...get().draws, [groupId]: draw },
@@ -806,7 +891,7 @@ export const useTournament = create<TournamentState>()(
           const participantsById: Record<string, Participant> = {}
           for (const participant of participants) participantsById[participant.id] = participant
           const bronze = medalInfo.bronze && group.participantIds.length === 4
-          const next = generateGroupDraw(group, participantsById, tournamentRules, { bronze })
+          const next = generateGroupDraw(group, participantsById, tournamentRules, drawOptions(get(), bronze))
           set({
             participants,
             draws: { ...get().draws, [groupId]: next },
@@ -817,7 +902,7 @@ export const useTournament = create<TournamentState>()(
         // ————— جدول واقعی پر است: برگه به اندازه بعدی بزرگ می شود — قرعه از نو
         const participantsById: Record<string, Participant> = {}
         for (const participant of participants) participantsById[participant.id] = participant
-        const next = generateGroupDraw(group, participantsById, tournamentRules)
+        const next = generateGroupDraw(group, participantsById, tournamentRules, drawOptions(get()))
         // ساختار عوض شده — شماره های دستی این جدول دیگر معنا ندارند
         const overrides = { ...get().matchNumberOverrides }
         delete overrides[groupId]
@@ -985,8 +1070,11 @@ export const useTournament = create<TournamentState>()(
             weightCategory: spec.weightCategory,
             participantIds: spec.participantIds,
           }
+          // چیدمان پیش نمایش باران مدال با sourceRow تزریق شده است — نوع قرعه
+          // باید همان جداسازی بماند تا سواپ های پیش نمایش به هم نریزد
           newDraws[spec.groupId] = generateGroupDraw(group, participantsById, tournamentRules, {
-            bronze,
+            ...drawOptions(get(), bronze),
+            drawType: 'coachSeeded',
           })
           newInfos[spec.groupId] = {
             weightTitle: weightLabel,
@@ -1065,7 +1153,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 17,
+      version: 18,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -1086,6 +1174,8 @@ export const useTournament = create<TournamentState>()(
         //           (باگ «نمی گذارد فاصله بدهم»)
         //      v16: کلید نمایش پلاک قهرمان — ذخیره های قدیمی روشن شروع می کنند
         //      v17: طرح برگه (کلاسیک/مدرن) — ذخیره های قدیمی کلاسیک شروع می کنند
+        //      v18: نوع قرعه کشی و چیدمان استراحت — ذخیره های قدیمی با همان
+        //           رفتار همیشگی شروع می کنند (جداسازی هم تیمی ها + آینه ای)
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -1094,7 +1184,9 @@ export const useTournament = create<TournamentState>()(
           state.medalRainTables && typeof state.medalRainTables === 'object'
             ? state.medalRainTables
             : {}
-        const draws = buildDraws(participants)
+        const drawTypeId = normalizeDrawTypeId(state.drawTypeId)
+        const byePlacementId = normalizeByePlacementId(state.byePlacementId)
+        const draws = buildDraws(participants, { drawType: drawTypeId, byePlacement: byePlacementId })
         for (const [groupId, info] of Object.entries(medalRainTables)) {
           const draw = draws[groupId]
           if (draw && info.bronze) {
@@ -1135,6 +1227,8 @@ export const useTournament = create<TournamentState>()(
           matchChipSize: normalizeMatchChipSize(state.matchChipSize),
           showChampion: state.showChampion !== false,
           sheetLayout: normalizeSheetLayoutId(state.sheetLayout),
+          drawTypeId,
+          byePlacementId,
         }
       },
       partialize: (state) => ({
@@ -1157,6 +1251,8 @@ export const useTournament = create<TournamentState>()(
         matchChipSize: state.matchChipSize,
         showChampion: state.showChampion,
         sheetLayout: state.sheetLayout,
+        drawTypeId: state.drawTypeId,
+        byePlacementId: state.byePlacementId,
       }),
     },
   ),

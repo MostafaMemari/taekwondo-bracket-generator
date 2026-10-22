@@ -41,6 +41,7 @@ export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classi
     return (
       <div
         dir="ltr"
+        data-match-id={match.matchId}
         className="relative h-full w-full"
         style={{
           borderRadius: boxRadius,
@@ -115,6 +116,7 @@ export function MatchBox({ match, roundCount, dims, renderLeaf, design = 'classi
   return (
     <div
       dir="ltr"
+      data-match-id={match.matchId}
       className="relative h-full w-full"
       style={{
         borderRadius: boxRadius,

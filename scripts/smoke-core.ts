@@ -197,6 +197,115 @@ for (let n = 2; n <= 12; n += 1) {
   )
 }
 
+// ————— ت۳۴ — چیدمان استراحت «همیشه زیر اسم» —————
+// قانون: در هر جفت دور یک، اگر فقط یکی از دو خانه استراحت باشد، استراحت باید
+// خانه زوج (پایین جفت) باشد — اسم بالای جفت همیشه هنرجوست؛ تقسیم چپ و راست
+// مثل حالت آینه ای می ماند (۵ استراحت: ۳ چپ و ۲ راست)
+function round1PairRuleHolds(structure: ReturnType<typeof buildBracketTree>): boolean {
+  const restSet = new Set(structure.restSlotIds)
+  for (let k = 0; k + 1 < structure.leaves.length; k += 2) {
+    // جفت دور یک: برگ اول خانه بالای جفت است و برگ دوم خانه پایین —
+    // اگر فقط یکی استراحت باشد، باید خانه پایین (برگ دوم) باشد
+    const topRest = restSet.has(structure.leaves[k].slotId)
+    const bottomRest = restSet.has(structure.leaves[k + 1].slotId)
+    if (topRest && !bottomRest) return false
+  }
+  return true
+}
+
+for (let n = 3; n <= 12; n += 1) {
+  const structure = buildBracketTree(n, { byePlacement: 'belowName' })
+  check(`N=${n} belowName: every rest sits under a name`, round1PairRuleHolds(structure))
+}
+
+const mirror5 = buildBracketTree(5)
+const belowName5 = buildBracketTree(5, { byePlacement: 'belowName' })
+check(
+  'N=5 belowName differs from mirror where the wing mirror used to flip',
+  mirror5.restSlotIds.join(',') === 'slot-2,slot-3,slot-7' &&
+    belowName5.restSlotIds.join(',') === 'slot-2,slot-4,slot-8',
+)
+check(
+  'N=5 belowName keeps the left/right bye split (2 left, 1 right)',
+  belowName5.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 4).length === 2 &&
+    belowName5.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 4).length === 1,
+)
+
+const threeBelow = buildBracketTree(3, { byePlacement: 'belowName' })
+check(
+  'N=3 belowName: 4-slot sheet, single rest under the name (left wing)',
+  threeBelow.bracketSize === 4 && threeBelow.restSlotIds.join(',') === 'slot-2',
+)
+check('N=3 belowName pair rule holds', round1PairRuleHolds(threeBelow))
+
+// تقسیم چپ و راست با قانون «استراحت اضافی سمت چپ» می ماند: ۹ نفر در برگه ۱۶ —
+// ۷ استراحت: ۴ سمت چپ و ۳ سمت راست
+const nineBelow = buildBracketTree(9, { byePlacement: 'belowName' })
+check(
+  'N=9 belowName: 7 rests split 4 left / 3 right',
+  nineBelow.bracketSize === 16 &&
+    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 8).length === 4 &&
+    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 8).length === 3,
+)
+check('N=9 belowName pair rule holds on the 16-slot sheet', round1PairRuleHolds(nineBelow))
+
+// default build stays identical to the explicit mirror mode (back-compat)
+for (const n of [3, 5, 6, 7, 9, 11]) {
+  const implicit = buildBracketTree(n)
+  const explicit = buildBracketTree(n, { byePlacement: 'mirror' })
+  check(
+    `N=${n} default build equals mirror mode`,
+    implicit.restSlotIds.join(',') === explicit.restSlotIds.join(','),
+  )
+}
+
+// ————— ت۳۴ — نوع قرعه کشی «کاملا تصادفی» —————
+// بدون قاعده مربی: فقط باید همه خانه های غیر استراحت دقیقا یک بار پر شوند
+for (const n of [5, 7, 9]) {
+  const squad = makeParticipants({ 'رضایی': Math.ceil(n / 3), 'محمدی': Math.floor(n / 3), 'احمدی': n - Math.ceil(n / 3) - Math.floor(n / 3) })
+  const g = groupByCategory(squad)[0]
+  const d = generateGroupDraw(g, Object.fromEntries(squad.map((p) => [p.id, p])), tournamentRules, {
+    drawType: 'random',
+    byePlacement: 'belowName',
+  })
+  const placed = Object.values(d.assignments).filter((o) => o.kind === 'participant')
+  const filledSlots = Object.entries(d.assignments).filter(([, o]) => o.kind === 'participant')
+  check(
+    `N=${n} random draw fills every non-rest slot once`,
+    placed.length === n &&
+      new Set(placed.map((o) => o.participantId)).size === n &&
+      filledSlots.length === d.structure.bracketSize - d.structure.restSlotIds.length,
+  )
+  check(
+    `N=${n} random draw on belowName keeps rests under names`,
+    round1PairRuleHolds(d.structure),
+  )
+}
+
+// ————— ت۳۴ — ماژول drawModes — پیش فرض ها و نرمال سازی —————
+{
+  const modes = await import('../src/lib/drawModes.ts')
+  check('draw modes: two draw types, coach separation first and default',
+    modes.drawTypes.length === 2 &&
+      modes.drawTypes[0]!.id === 'coachSeeded' &&
+      modes.drawTypes[1]!.id === 'random' &&
+      modes.normalizeDrawTypeId('random') === 'random' &&
+      modes.normalizeDrawTypeId('coachSeeded') === 'coachSeeded' &&
+      modes.normalizeDrawTypeId('junk') === 'coachSeeded' &&
+      modes.normalizeDrawTypeId(undefined) === 'coachSeeded',
+  )
+  check('bye placements: two options, mirror first and default',
+    modes.byePlacements.length === 2 &&
+      modes.byePlacements[0]!.id === 'mirror' &&
+      modes.byePlacements[1]!.id === 'belowName' &&
+      modes.normalizeByePlacementId('belowName') === 'belowName' &&
+      modes.normalizeByePlacementId('mirror') === 'mirror' &&
+      modes.normalizeByePlacementId('junk') === 'mirror' &&
+      modes.normalizeByePlacementId(42) === 'mirror',
+  )
+}
+
+
 const layout = computeBracketLayout(draw.structure, {
   cardWidth: 200,
   cardHeight: 50,
