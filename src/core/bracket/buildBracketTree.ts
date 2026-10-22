@@ -64,11 +64,66 @@ function mirrorMode(from: number, to: number, wingRows: number): SplitMode {
 }
 
 /**
+ * چیدمان «همیشه زیر اسم» با قانون چهارگوشه — ترتیب اولویت مسابقه های
+ * استراحت گیرنده روی برگه (طبق الگوی قرعه کشی):
+ *   ۱) اولین مسابقه نیمه چپ   ۲) اولین مسابقه نیمه راست
+ *   ۳) آخرین مسابقه نیمه چپ   ۴) آخرین مسابقه نیمه راست
+ *   ۵) بعدی سمت راست، مسابقه دوم از بالا («سمت راست جدول قسمت بالا») —
+ *      و پس از آن یکی در میان راست/چپ، از بالا به سمت وسط هر نیمه.
+ * هر مسابقه دور یک یا «استراحت دار» است (هنرجو خانه بالا، استراحت خانه پایین)
+ * یا «واقعی» (دو هنرجو)؛ استراحت ها به ترتیب همین اولویت مسابقه برمی دارند و
+ * شمار هنرجوی هر نیمه از دل همین چینش در می آید — ۵ استراحت: ۲ چپ و ۳ راست.
+ */
+function buildCornerByeTree(participantCount: number, bracketSize: number): RawNode {
+  const wingMatches = bracketSize / 4
+  const priority: Array<['left' | 'right', number]> = [
+    ['left', 0],
+    ['right', 0],
+    ['left', wingMatches - 1],
+    ['right', wingMatches - 1],
+  ]
+  for (let index = 1; index <= wingMatches - 2; index += 1) {
+    priority.push(['right', index], ['left', index])
+  }
+  const byeCount = Math.min(bracketSize - participantCount, priority.length)
+  const byeMatches = new Set<string>()
+  for (let index = 0; index < byeCount; index += 1) {
+    const [wing, matchIndex] = priority[index]!
+    byeMatches.add(`${wing}:${matchIndex}`)
+  }
+
+  /** بخش [from, to) از برگ های یک نیمه — تک جفتِ دور یک: استراحت دار یا واقعی */
+  function buildWingPart(wing: 'left' | 'right', from: number, to: number): RawNode {
+    if (to - from === 2) {
+      const isBye = byeMatches.has(`${wing}:${from / 2}`)
+      return {
+        kind: 'match',
+        count: isBye ? 1 : 2,
+        left: { kind: 'leaf', count: 1 },
+        right: { kind: 'leaf', count: isBye ? 0 : 1 },
+      }
+    }
+    const mid = from + (to - from) / 2
+    const left = buildWingPart(wing, from, mid)
+    const right = buildWingPart(wing, mid, to)
+    return { kind: 'match', count: left.count + right.count, left, right }
+  }
+
+  const wingRows = bracketSize / 2
+  return {
+    kind: 'match',
+    count: participantCount,
+    left: buildWingPart('left', 0, wingRows),
+    right: buildWingPart('right', 0, wingRows),
+  }
+}
+
+/**
  * دو بال برگه — هر دو با جهت top ساخته می شوند (سرریز ورزشکار به بالای نیمه،
  * استراحت ها آینه حول وسط همان نیمه) و ریشه آن ها را با قانون «استراحت
  * اضافی سمت چپ» به هم می دوزد: نیمه اول floor(n/2) ورزشکار می گیرد.
- * حالت «همیشه زیر اسم» آینه را برداشت می دارد تا استراحت در هر جفت خانه
- * پایین بنشیند — اسم بالا، استراحت زیر آن.
+ * حالت «همیشه زیر اسم» از مسیر جداگانه buildCornerByeTree می گذرد (قانون
+ * چهارگوشه) و فقط برای برگه دو نفره — که استراحت ندارد — به همین تابع می رسد.
  */
 function buildWingedTree(
   participantCount: number,
@@ -110,7 +165,12 @@ export function buildBracketTree(participantCount: number, options: BuildBracket
 
   const bracketSize = 2 ** Math.ceil(Math.log2(participantCount))
   const totalRounds = Math.round(Math.log2(bracketSize))
-  const root = buildWingedTree(participantCount, bracketSize, options.byePlacement ?? 'mirror')
+  // «همیشه زیر اسم» روی برگه های ۴ نفره به بالا: قانون چهارگوشه؛ آینه ای و
+  // برگه دو نفره: همان ساختار همیشگی
+  const root =
+    options.byePlacement === 'belowName' && bracketSize >= 4
+      ? buildCornerByeTree(participantCount, bracketSize)
+      : buildWingedTree(participantCount, bracketSize, options.byePlacement ?? 'mirror')
 
   const leaves: StructureLeaf[] = []
   const matches: StructureMatch[] = []

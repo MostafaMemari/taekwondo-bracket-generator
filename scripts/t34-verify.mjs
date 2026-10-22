@@ -97,6 +97,31 @@ function pairRuleHolds(list) {
 }
 check('belowName: every rest sits UNDER the name in its round-1 pair', pairRuleHolds(slots))
 
+// ————— ت۳۵: قانون چهارگوشه —————
+// ترتیب استراحت ها: بالای چپ، بالای راست، پایین چپ، پایین راست؛ بعدی سمت
+// راست قسمت بالا. برای ۳ استراحت (برگه ۸ نفره): دو مسابقه بالای نیمه چپ و
+// مسابقه بالای نیمه راست استراحت دارند — استراحت راست باید در بالاترین
+// مسابقه دور یک نیمه راست باشد (نه پایین آن)
+const rightSideSlots = slots.filter((slot) => slot.x >= 800)
+const rightRests = rightSideSlots.filter((slot) => slot.rest)
+const rightYs = rightSideSlots.map((slot) => slot.y)
+const rightMid = (Math.min(...rightYs) + Math.max(...rightYs)) / 2
+check(
+  'belowName corner order: the right-side rest sits in the TOP match of the right wing',
+  rightRests.length === 1 && rightRests[0].y < rightMid,
+  `restY=${rightRests[0] ? rightRests[0].y.toFixed(0) : '?'} mid=${rightMid.toFixed(0)}`,
+)
+const leftRestsCorner = slots.filter((slot) => slot.x < 800 && slot.rest)
+const leftYs = slots.filter((slot) => slot.x < 800).map((slot) => slot.y)
+const leftMid = (Math.min(...leftYs) + Math.max(...leftYs)) / 2
+check(
+  'belowName corner order: left wing rests sit at its top AND bottom matches',
+  leftRestsCorner.length === 2 &&
+    leftRestsCorner.filter((slot) => slot.y < leftMid).length === 1 &&
+    leftRestsCorner.filter((slot) => slot.y > leftMid).length === 1,
+  `top=${leftRestsCorner.filter((slot) => slot.y < leftMid).length} bottom=${leftRestsCorner.filter((slot) => slot.y > leftMid).length}`,
+)
+
 // تقسیم چپ و راست — ۳ استراحت: ۲ در نیمه چپ و ۱ در نیمه راست برگه
 const leftRests = rests.filter((slot) => slot.x < 800).length
 check('belowName: left/right bye split preserved (2 left, 1 right)', leftRests === 2, `left=${leftRests}`)

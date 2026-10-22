@@ -197,10 +197,12 @@ for (let n = 2; n <= 12; n += 1) {
   )
 }
 
-// ————— ت۳۴ — چیدمان استراحت «همیشه زیر اسم» —————
-// قانون: در هر جفت دور یک، اگر فقط یکی از دو خانه استراحت باشد، استراحت باید
-// خانه زوج (پایین جفت) باشد — اسم بالای جفت همیشه هنرجوست؛ تقسیم چپ و راست
-// مثل حالت آینه ای می ماند (۵ استراحت: ۳ چپ و ۲ راست)
+// ————— ت۳۴ + ت۳۵ — چیدمان استراحت «همیشه زیر اسم» با قانون چهارگوشه —————
+// قانون ۱: در هر جفت دور یک، اگر فقط یکی از دو خانه استراحت باشد، استراحت
+// خانه زوج (پایین جفت) است — اسم بالای جفت همیشه هنرجوست.
+// قانون ۲ (ترتیب چهارگوشه): اول بالای چپ، بعد بالای راست، بعد پایین چپ و
+// پایین راست؛ استراحت بعدی سمت راست قسمت بالای جدول و بقیه یکی در میان
+// راست/چپ تا وسط نیمه ها (۵ استراحت: ۲ چپ و ۳ راست).
 function round1PairRuleHolds(structure: ReturnType<typeof buildBracketTree>): boolean {
   const restSet = new Set(structure.restSlotIds)
   for (let k = 0; k + 1 < structure.leaves.length; k += 2) {
@@ -221,33 +223,81 @@ for (let n = 3; n <= 12; n += 1) {
 const mirror5 = buildBracketTree(5)
 const belowName5 = buildBracketTree(5, { byePlacement: 'belowName' })
 check(
-  'N=5 belowName differs from mirror where the wing mirror used to flip',
+  'N=5 belowName: rests at left-top, left-second, right-top (corner order)',
   mirror5.restSlotIds.join(',') === 'slot-2,slot-3,slot-7' &&
-    belowName5.restSlotIds.join(',') === 'slot-2,slot-4,slot-8',
+    belowName5.restSlotIds.join(',') === 'slot-2,slot-4,slot-6',
 )
 check(
-  'N=5 belowName keeps the left/right bye split (2 left, 1 right)',
+  'N=5 belowName keeps 2 left / 1 right',
   belowName5.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 4).length === 2 &&
     belowName5.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 4).length === 1,
 )
 
 const threeBelow = buildBracketTree(3, { byePlacement: 'belowName' })
 check(
-  'N=3 belowName: 4-slot sheet, single rest under the name (left wing)',
+  'N=3 belowName: 4-slot sheet, single rest at left-top under the name',
   threeBelow.bracketSize === 4 && threeBelow.restSlotIds.join(',') === 'slot-2',
 )
 check('N=3 belowName pair rule holds', round1PairRuleHolds(threeBelow))
 
-// تقسیم چپ و راست با قانون «استراحت اضافی سمت چپ» می ماند: ۹ نفر در برگه ۱۶ —
-// ۷ استراحت: ۴ سمت چپ و ۳ سمت راست
+// ۹ نفر در برگه ۱۶ — ۷ استراحت: چهارگوشه (۲،۸،۱۰،۱۶) + راست دوم از بالا (۱۲)
+// و چپ دوم از بالا (۴) → ۳ سمت چپ و ۴ سمت راست
 const nineBelow = buildBracketTree(9, { byePlacement: 'belowName' })
 check(
-  'N=9 belowName: 7 rests split 4 left / 3 right',
+  'N=9 belowName: corner order — rests {2,4,8,10,12,14,16}, 3 left / 4 right',
   nineBelow.bracketSize === 16 &&
-    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 8).length === 4 &&
-    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 8).length === 3,
+    nineBelow.restSlotIds.join(',') === 'slot-2,slot-4,slot-8,slot-10,slot-12,slot-14,slot-16' &&
+    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 8).length === 3 &&
+    nineBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 8).length === 4,
 )
 check('N=9 belowName pair rule holds on the 16-slot sheet', round1PairRuleHolds(nineBelow))
+
+// الگوی عکس کاربر — ۱۱ نفر در برگه ۱۶ با ۵ استراحت:
+//   ۱) بالای چپ (۲)  ۲) بالای راست (۱۰)  ۳) پایین چپ (۸)
+//   ۴) پایین راست (۱۶)  ۵) سمت راست قسمت بالا (۱۲) → ۲ چپ و ۳ راست
+const elevenBelow = buildBracketTree(11, { byePlacement: 'belowName' })
+check(
+  'N=11 belowName: the 5 rests sit at L-top, R-top, L-bottom, R-bottom, R-second',
+  elevenBelow.bracketSize === 16 &&
+    elevenBelow.restSlotIds.join(',') === 'slot-2,slot-8,slot-10,slot-12,slot-16' &&
+    elevenBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 8).length === 2 &&
+    elevenBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) > 8).length === 3,
+)
+check('N=11 belowName pair rule holds', round1PairRuleHolds(elevenBelow))
+
+// ۶ استراحت (۱۰ نفر): بعد از چهارگوشه، خانه دوم راست و بعد خانه دوم چپ → ۳/۳
+const tenBelow = buildBracketTree(10, { byePlacement: 'belowName' })
+check(
+  'N=10 belowName: 6 rests — corners plus second of each side, even 3/3 split',
+  tenBelow.restSlotIds.join(',') === 'slot-2,slot-4,slot-8,slot-10,slot-12,slot-16' &&
+    tenBelow.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= 8).length === 3,
+)
+check('N=10 belowName pair rule holds', round1PairRuleHolds(tenBelow))
+
+// قانون چهارگوشه برای هر اندازه — مجموعه دقیق استراحت ها به ترتیب برگ ها
+// (چپ از بالا تا پایین، بعد راست): ۴ گوشه اول، بعد راست دوم از بالا، چپ دوم
+// از بالا و به همین ترتیب تا وسط نیمه ها
+const cornerRestExpectations: Record<number, string> = {
+  3: 'slot-2',
+  5: 'slot-2,slot-4,slot-6',
+  6: 'slot-2,slot-6',
+  7: 'slot-2',
+  9: 'slot-2,slot-4,slot-8,slot-10,slot-12,slot-14,slot-16',
+  10: 'slot-2,slot-4,slot-8,slot-10,slot-12,slot-16',
+  11: 'slot-2,slot-8,slot-10,slot-12,slot-16',
+  12: 'slot-2,slot-8,slot-10,slot-16',
+  13: 'slot-2,slot-8,slot-10',
+  14: 'slot-2,slot-10',
+  15: 'slot-2',
+}
+for (const [n, expected] of Object.entries(cornerRestExpectations)) {
+  const structure = buildBracketTree(Number(n), { byePlacement: 'belowName' })
+  check(
+    `N=${n} belowName: rests follow the corner priority exactly (${expected})`,
+    structure.restSlotIds.join(',') === expected,
+  )
+  check(`N=${n} belowName: every rest sits under a name`, round1PairRuleHolds(structure))
+}
 
 // default build stays identical to the explicit mirror mode (back-compat)
 for (const n of [3, 5, 6, 7, 9, 11]) {
