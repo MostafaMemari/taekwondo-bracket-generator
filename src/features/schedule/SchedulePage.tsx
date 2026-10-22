@@ -54,7 +54,7 @@ import { EmptyState } from '../../components/EmptyState.tsx'
 import { BusyOverlay } from '../../components/ExportChrome.tsx'
 import { OFFSCREEN_MOUNT_STYLE } from '../../components/offscreenMount.ts'
 import { toEnDigits, toFaDigits, groupTitle, renderWeightTitle } from '../../lib/formatFa.ts'
-import { tableThemeById } from '../../lib/tableThemes.ts'
+import { tableThemeById, classicTheme } from '../../lib/tableThemes.ts'
 import { roundLabel } from '../../lib/roundLabels.ts'
 import { compareByWeightLabel } from '../../lib/weightSorting.ts'
 import { realMatchCount, groupOptionLabel } from '../../lib/drawStats.ts'
@@ -671,12 +671,13 @@ function TablesView({
         <Info size={15} className="mt-1 shrink-0 text-mat-600" />
         <span>
           این ها همان جدول های قرعه وزن های داخل برنامه اند — به ترتیب بازه زمانی و زمین، با
-          شماره های زنده مسابقه ها و بج درشت «زمین» و «ساعت» روی سربرگ هر برگه. هر ردیف هنرجو قابل
-          کشیدن است: روی ردیف هنرجوی دیگر رها کن تا جای دو نفر عوض شود؛ رها کردن روی خانه
-          «استراحت» هم استراحت را به همان هنرجو منتقل می کند. از پنل «مربی ها و هنرجوها» هم با دکمه
-          تعویض کنار هر نام می توانی استراحت را دستی جابه جا کنی. دکمه «قرعه کشی دوباره» چیدمان
-          تازه ای با همان هنرجوها می سازد. شماره هر مسابقه هم روی دایره اش قابل ویرایش است و دکمه
-          «خروجی عکس» تصویر PNG همان برگه را جدا می دهد.
+          شماره های زنده مسابقه ها و بج درشت «زمین» و «ساعت» روی سربرگ هر برگه. هر ردیف هنرجو و هر
+          خانه «استراحت» قابل کشیدن است: روی هر خانه دیگری رها کن تا جای دو خانه عوض شود —
+          استراحت را روی هر هنرجویی بندازی تا استراحت همان جا بنشیند و هنرجو جای استراحت برود؛
+          ساختار جدول دست نمی خورد پس شماره مسابقه ها همیشه درست می ماند. از پنل «مربی ها و
+          هنرجوها» هم با دکمه تعویض کنار هر نام می توانی جایگاه ها را دستی عوض کنی. دکمه «قرعه
+          کشی دوباره» چیدمان تازه ای با همان هنرجوها می سازد. شماره هر مسابقه هم روی دایره اش
+          قابل ویرایش است و دکمه «خروجی عکس» تصویر PNG همان برگه را جدا می دهد.
         </span>
       </p>
 
@@ -811,6 +812,26 @@ function TablesView({
             if (!sheetDrag) return null
             const sheet = scheduledSheets.find((item) => item.groupId === sheetDrag.groupId)
             const occupant = sheet?.draw.assignments[sheetDrag.slotId]
+            if (occupant?.kind === 'bye') {
+              // شبح استراحت — همان نمای خانه استراحت برگه
+              return (
+                <div
+                  dir="rtl"
+                  className="flex h-16 w-[216px] items-center justify-center rounded-md border-2 border-dashed shadow-lg"
+                  style={{
+                    borderColor: classicTheme.sides.chong.borderSoft,
+                    backgroundColor: classicTheme.byeBg,
+                  }}
+                >
+                  <span
+                    className="text-[11px] font-bold"
+                    style={{ color: classicTheme.sides.chong.accent, opacity: 0.6 }}
+                  >
+                    استراحت
+                  </span>
+                </div>
+              )
+            }
             const participant =
               occupant?.kind === 'participant'
                 ? participantsById.get(occupant.participantId)

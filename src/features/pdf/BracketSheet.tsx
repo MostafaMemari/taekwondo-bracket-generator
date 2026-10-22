@@ -183,22 +183,20 @@ export function BracketSheet({
     if (leaf?.kind !== "slot") return <PositionRow side={side} />;
     const occupant = draw.assignments[leaf.slotId];
     if (occupant.kind === "bye") {
-      // رها کردن هنرجو روی گوشه استراحت = انتقال استراحت: تعویض با صاحب کنونی
-      // استراحت (هنرجوی خانه همسایه همین مسابقه)
-      if (interactiveSwaps && match) {
-        const siblingSlotId =
-          match.topSlotId === leaf.slotId ? match.bottomSlotId : match.topSlotId;
-        const sibling = siblingSlotId ? draw.assignments[siblingSlotId] : undefined;
-        if (siblingSlotId && sibling?.kind === "participant") {
-          return (
-            <SheetDropZone
-              dropId={`${draw.groupId}::${siblingSlotId}`}
-              hint="رها کردن هنرجو اینجا، استراحت را به او می دهد و صاحب کنونی استراحت جای او می نشیند"
-            >
+      // گوشه «استراحت» آزادانه جابه جا می شود — خودش قابل کشیدن است و رها کردن
+      // هر هنرجویی روی آن هم دو خانه را کامل عوض می کند؛ استراحت می رود جای
+      // هنرجو و هنرجو می نشیند جای استراحت — ساختار و شماره ها دست نمی خورد
+      if (interactiveSwaps) {
+        return (
+          <SheetDropZone
+            dropId={`${draw.groupId}::${leaf.slotId}`}
+            hint="بکش و روی هر خانه ای رها کن تا استراحت همان جا بنشیند — یا هنرجو را روی همین خانه رها کن"
+          >
+            <SheetDragChip groupId={draw.groupId} slotId={leaf.slotId}>
               <ByeRow side={side} />
-            </SheetDropZone>
-          );
-        }
+            </SheetDragChip>
+          </SheetDropZone>
+        );
       }
       return <ByeRow side={side} />;
     }
@@ -1719,8 +1717,9 @@ function SheetDropZone({
 }
 
 /**
- * ردیف قابل کشیدن هنرجو در برگه تعاملی — همان فیزیک بوم قرعه: کشیدن با فاصله
- * ۶ پیکسل فعال می شود تا کلیک ساده مزاحمش نشود.
+ * ردیف قابل کشیدن برگه تعاملی — هم هنرجو و هم گوشه «استراحت» (بدون participant)
+ * با همین فیزیک کشیده می شوند: فعال شدن با فاصله ۶ پیکسل تا کلیک ساده مزاحمش
+ * نشود. شناسه اسلات خودش را حمل می کند تا تعویض دو خانه کامل باشد.
  */
 function SheetDragChip({
   groupId,
@@ -1730,19 +1729,19 @@ function SheetDragChip({
 }: {
   groupId: string;
   slotId: string;
-  participant: Participant;
+  participant?: Participant;
   children: React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `sheet-drag:${groupId}::${slotId}`,
-    data: { groupId, slotId },
+    data: { groupId, slotId, isRest: !participant },
   });
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      aria-label={`جابه جایی ${participant.fullName}`}
+      aria-label={participant ? `جابه جایی ${participant.fullName}` : "انتقال استراحت"}
       className={`h-full w-full cursor-grab touch-none active:cursor-grabbing ${
         isDragging ? "opacity-30" : ""
       }`}
