@@ -1,4 +1,4 @@
-import type { BracketStructure, BracketStructureNode, BronzeMatchInfo } from '../types.ts'
+import type { BracketStructure, BracketStructureNode, BronzeMatchInfo, SlotAssignments } from '../types.ts'
 
 /** the two corners of a taekwondo match: top row = chong (blue), bottom = hong (red) */
 export type SlotSide = 'chong' | 'hong'
@@ -730,4 +730,21 @@ export function computeBracketLayout(
     }
   }
   return computePlanLayout(toPlan(structure.root), dims, structure.bronzeMatch ?? null, options)
+}
+
+/**
+ * آیا این مسابقه واقعاً برگزار می شود؟ — بعد از جابه جایی استراحت، ساختار
+ * ثابت می ماند اما واقعیت خانه ها عوض می شود: مسابقه ای که استراحت به آن
+ * رسید «بی کار» می شود (نمایش شماره ندارد) و مسابقه ای که هنرجو جای
+ * استراحت نشست «واقعی» می شود (نمایش شماره دارد). دورهای بالاتر که گوشه
+ * هایشان برنده مسابقه های قبل است، همان قاعده ساختاری را دارند.
+ */
+export function matchIsPlayed(match: LayoutMatch, assignments: SlotAssignments): boolean {
+  if (match.topSlotId && match.bottomSlotId) {
+    return (
+      assignments[match.topSlotId]?.kind === 'participant' &&
+      assignments[match.bottomSlotId]?.kind === 'participant'
+    )
+  }
+  return match.contested
 }

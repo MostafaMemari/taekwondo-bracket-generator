@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { tournamentRules } from '../config/tournamentRules.ts'
-import { applySlotSwap } from '../core/bracket/applySlotSwap.ts'
+import { applySlotSwap, reconcileMatchNumberOverrides } from '../core/bracket/applySlotSwap.ts'
 import { generateGroupDraw } from '../core/bracket/generateGroupDraw.ts'
 import { attachBronzeMatch } from '../core/bracket/medalRain.ts'
 import { groupByCategory } from '../core/grouping/groupByCategory.ts'
@@ -357,7 +357,27 @@ export const useTournament = create<TournamentState>()(
         const nextAssignments = applySlotSwap(draw.assignments, fromSlotId, toSlotId)
         if (!nextAssignments) return
 
+        // اگر استراحت با هنرجو عوض شده باشد، مسابقه ای که بی کار شده شماره
+        // دستی اش پاک می شود و همان شماره به مسابقه ای می رود که واقعی شد —
+        // شماره همیشه دنبال مسابقه واقعی می ماند
+        const reconciled = reconcileMatchNumberOverrides(
+          draw.structure,
+          draw.assignments,
+          nextAssignments,
+          get().matchNumberOverrides[groupId] ?? {},
+          fromSlotId,
+          toSlotId,
+        )
+
         set({
+          ...(reconciled
+            ? {
+                matchNumberOverrides: {
+                  ...get().matchNumberOverrides,
+                  [groupId]: reconciled,
+                },
+              }
+            : {}),
           draws: {
             ...get().draws,
             [groupId]: {

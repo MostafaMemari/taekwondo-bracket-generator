@@ -16,6 +16,7 @@ import {
   barSideForMatch,
   computeBracketLayout,
   interactiveLayoutDims,
+  matchIsPlayed,
   type SlotSide,
 } from "../../core/bracket/layout.ts";
 import type { GroupDraw, Participant } from "../../core/types.ts";
@@ -285,7 +286,7 @@ export function BracketCanvas({
           )}
 
           {layout.matches
-            .filter((match) => match.contested)
+            .filter((match) => matchIsPlayed(match, draw.assignments))
             .map((match) => (
               <MatchNumberChip
                 key={`chip-${match.matchId}`}

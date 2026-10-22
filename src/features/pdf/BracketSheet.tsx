@@ -7,6 +7,7 @@ import {
   computePlanLayout,
   barSideForMatch,
   fitPrintDims,
+  matchIsPlayed,
   type BracketLayout,
   type LayoutDims,
   type LayoutMatch,
@@ -168,7 +169,7 @@ export function BracketSheet({
     leaf: PlanLeaf | null,
     side: SlotSide,
     dims: LayoutDims,
-    match?: LayoutMatch,
+    _match?: LayoutMatch,
     barSide?: "left" | "right",
   ) {
     if (leaf?.kind === "winner")
@@ -1064,7 +1065,7 @@ export function BracketSheet({
           )}
 
           {layout.matches
-            .filter((match) => match.contested)
+            .filter((match) => matchIsPlayed(match, draw.assignments))
             .map((match) => {
               const isFinal = match.round === draw.structure.roundCount;
               // اندازه بج — اندازه پایه چیدمان × ضریب انتخابی تنظیمات
