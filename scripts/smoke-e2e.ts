@@ -128,10 +128,22 @@ check('swap onto itself rejected', applySlotSwap(fiveDraw.assignments, swapFrom,
 
 const restSlotId = fiveDraw.structure.restSlotIds[0]
 if (restSlotId) {
+  // ویژگی انتقال استراحت: جابه جایی هنرجو با استراحت مجاز است — دو خانه کامل
+  // عوض می شوند؛ آنچه رد می شود جابه جایی استراحت با استراحت است
+  const restSwap = applySlotSwap(fiveDraw.assignments, swapFrom, restSlotId)
   check(
-    'swap onto a rest slot rejected',
-    applySlotSwap(fiveDraw.assignments, swapFrom, restSlotId) === null,
+    'swap with a rest slot trades the two occupants',
+    Boolean(restSwap) &&
+      restSwap![restSlotId]?.kind === 'participant' &&
+      restSwap![swapFrom]?.kind === 'bye',
   )
+  const otherRestSlotId = fiveDraw.structure.restSlotIds[1]
+  if (otherRestSlotId) {
+    check(
+      'rest onto rest rejected',
+      applySlotSwap(fiveDraw.assignments, restSlotId, otherRestSlotId) === null,
+    )
+  }
 }
 
 // ————— قرعه کشی دوباره + تعویض جایگاه از پنل مربی ها —————

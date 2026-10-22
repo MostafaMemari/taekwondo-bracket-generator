@@ -6,7 +6,7 @@
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
 
-const BASE = 'http://127.0.0.1:3108'
+const BASE = 'http://localhost:3108'
 mkdirSync('scripts/t30', { recursive: true })
 
 let failures = 0

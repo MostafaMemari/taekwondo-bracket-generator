@@ -8,6 +8,7 @@ import { compareByWeightLabel } from '../../lib/weightSorting.ts'
 import { findSoloParticipant } from '../../lib/soloDraw.ts'
 import { ManualTableModal } from '../manual/ManualTableModal.tsx'
 import { MedalRainModal } from '../medal-rain/MedalRainModal.tsx'
+import { AddStudentDialog } from '../bracket/AddStudentDialog.tsx'
 import { GroupRow } from './GroupRow.tsx'
 
 interface AgeSection {
@@ -40,6 +41,8 @@ export function GroupsPage() {
   const startExportJob = useTournament((state) => state.startExportJob)
   const [manualOpen, setManualOpen] = useState(false)
   const [medalRainOpen, setMedalRainOpen] = useState(false)
+  // گفت وگوی «افزودن هنرجو» برای وزنی که دکمه اش زده شده
+  const [addForGroupId, setAddForGroupId] = useState<string | null>(null)
 
   const drawList = useMemo(() => Object.values(draws), [draws])
   const sections = useMemo(() => buildAgeSections(drawList), [drawList])
@@ -122,6 +125,7 @@ export function GroupsPage() {
                   draw={draw}
                   solo={findSoloParticipant(draw, participantsById) ?? undefined}
                   onOpen={() => openBracket(draw.groupId)}
+                  onAddStudent={() => setAddForGroupId(draw.groupId)}
                 />
               ))}
             </div>
@@ -135,6 +139,12 @@ export function GroupsPage() {
       </div>
       <ManualTableModal open={manualOpen} onClose={() => setManualOpen(false)} />
       <MedalRainModal open={medalRainOpen} onClose={() => setMedalRainOpen(false)} />
+      {addForGroupId && (
+        <AddStudentDialog
+          groupId={addForGroupId}
+          onClose={() => setAddForGroupId(null)}
+        />
+      )}
     </div>
   )
 }

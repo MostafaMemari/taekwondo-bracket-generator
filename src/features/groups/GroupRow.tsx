@@ -1,4 +1,4 @@
-import { ChevronLeft, FileDown, ImageDown, Trash2 } from "lucide-react";
+import { ChevronLeft, FileDown, ImageDown, Trash2, UserPlus } from "lucide-react";
 import type { GroupDraw, Participant } from "../../core/types.ts";
 import { useTournament } from "../../store/tournamentStore.ts";
 import { realMatchCount } from "../../lib/drawStats.ts";
@@ -8,6 +8,8 @@ interface GroupRowProps {
   draw: GroupDraw;
   solo?: Participant;
   onOpen: () => void;
+  /** گفت وگوی «افزودن هنرجو» به همین وزن — از صفحه گروه ها */
+  onAddStudent?: () => void;
 }
 
 /**
@@ -15,7 +17,7 @@ interface GroupRowProps {
  * شمارنده ها و دو دکمه عکس/PDF در همان کارت، بدون فاصله خالی بلند. کلیک روی
  * خود کارت جدول را باز می کند و دکمه ها با توقف رویداد سر کارش می مانند.
  */
-export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
+export function GroupRow({ draw, solo, onOpen, onAddStudent }: GroupRowProps) {
   const exportGroupPdf = useTournament((state) => state.exportGroupPdf);
   const exportGroupImage = useTournament((state) => state.exportGroupImage);
   const removeManualTable = useTournament((state) => state.removeManualTable);
@@ -79,6 +81,19 @@ export function GroupRow({ draw, solo, onOpen }: GroupRowProps) {
         </p>
       )}
       <div className="flex items-center gap-1.5 border-t border-line pt-2">
+        {onAddStudent && (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddStudent();
+            }}
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-mat-50 hover:text-mat-700"
+            title="افزودن هنرجوی تازه به این وزن"
+          >
+            <UserPlus size={13} />
+            افزودن هنرجو
+          </button>
+        )}
         <button
           onClick={(event) => {
             event.stopPropagation();

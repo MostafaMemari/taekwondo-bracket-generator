@@ -24,6 +24,8 @@ import type {
   ImportIssue,
   Participant,
   ParsedRoster,
+  SlotAssignments,
+  SlotOccupant,
 } from '../core/types.ts'
 
 export type PageName = 'import' | 'groups' | 'bracket' | 'schedule'
@@ -199,6 +201,31 @@ interface TournamentState {
   removeManualTable: (groupId: string) => void
   /** نوشتن نام/مربی روی یک شرکت کننده — جدول های دستی */
   updateParticipant: (participantId: string, patch: Partial<Pick<Participant, 'fullName' | 'coachName'>>) => void
+  /**
+   * افزودن هنرجوی تازه به یک جدول — بسته به نوع جدول:
+   *  • جدول دستی → اولین خانه بی نام پر می شود (ساختار ثابت می ماند)؛
+   *  • خانه استراحت آزاد → هنرجو همان جا می نشیند و بقیه چیدمان و شماره ها
+   *    دست نمی خورند؛
+   *  • جدول پر و واقعی → برگه به اندازه بعدی بزرگ می شود و قرعه از نو چیده
+   *    می شود (شماره های دستی همان جدول پاک می شوند)؛
+   *  • جدول باران مدال ۴ نفره رشد نمی کند — «full» برمی گردد.
+   * مقدار برگشتی: placed (در استراحت/خانه خالی نشست) · grown (برگه بزرگ شد)
+   * · full (جایی نبود) · unknown (جدول پیدا نشد یا نام خالی بود).
+   */
+  addParticipantToGroup: (
+    groupId: string,
+    input: { fullName: string; coachName: string },
+    /** اگر داده شود، هنرجو دقیقا در همین خانه استراحت می نشیند */
+    targetSlotId?: string,
+  ) => 'placed' | 'grown' | 'full' | 'unknown'
+  /**
+   * حذف کامل یک هنرجو از جدولش — خانه اش «استراحت» می شود و از فهرست
+   * هنرجوها و شناسه های جدول باران مدال پاک می شود؛ تاریخچه واگرد هم بی نام
+   * او بازنویسی می شود تا با واگرد دوباره زنده نشود. در جدول دستی خانه ها
+   * ثابت اند و فقط نام و مربی خالی می شود. اگر جدول بی هنرجو بماند، کل
+   * جدول (و رد آن در برنامه زمین ها) حذف می شود.
+   */
+  removeParticipant: (groupId: string, participantId: string) => void
 
   /**
    * ساخت جدول های باران مدال — چند جدول ۴/۳/۲ نفره از فهرست هنرجوها؛
@@ -692,6 +719,212 @@ export const useTournament = create<TournamentState>()(
             participant.id === participantId ? { ...participant, ...patch } : participant,
           ),
         }),
+
+      addParticipantToGroup: (groupId, input, targetSlotId) => {
+        const draw = get().draws[groupId]
+        const fullName = input.fullName.trim()
+        if (!draw || !fullName) return 'unknown'
+
+        // ————— جدول دستی: اولین خانه بی نام پر می شود، ساختار ثابت می ماند
+        const manualInfo = get().manualTables[groupId]
+        if (manualInfo) {
+          const participantsById = new Map(get().participants.map((p) => [p.id, p]))
+          const empty = manualInfo.participantIds
+            .map((id) => participantsById.get(id))
+            .find((participant) => participant && participant.fullName.trim() === '')
+          if (!empty) return 'full'
+          get().updateParticipant(empty.id, {
+            fullName,
+            coachName: input.coachName.trim(),
+          })
+          return 'placed'
+        }
+
+        const sourceRow =
+          get().participants.reduce((max, participant) => Math.max(max, participant.sourceRow), 0) + 1
+        const created: Participant = {
+          id: createId('participant'),
+          fullName,
+          coachName: input.coachName.trim(),
+          ageCategory: draw.group.ageCategory,
+          weightCategory: draw.group.weightCategory,
+          weightKg: '',
+          sourceRow,
+        }
+        const participants = [...get().participants, created]
+        const group: CategoryGroup = {
+          ...draw.group,
+          participantIds: [...draw.group.participantIds, created.id],
+        }
+
+        // ————— نشستن روی خانه استراحت: نه ساختار عوض می شود نه بقیه چیدمان
+        const isFreeRest = (slotId: string) => draw.assignments[slotId]?.kind === 'bye'
+        const targetRest =
+          targetSlotId && isFreeRest(targetSlotId)
+            ? targetSlotId
+            : Object.keys(draw.assignments).find((slotId) => isFreeRest(slotId))
+        if (targetRest) {
+          const occupant: SlotOccupant = { kind: 'participant', participantId: created.id }
+          const assignments: SlotAssignments = { ...draw.assignments, [targetRest]: occupant }
+          // «چیدمان اولیه» هم به روز می شود تا بازنشانی، هنرجوی تازه را نیاورد
+          const initialAssignments: SlotAssignments = {
+            ...draw.initialAssignments,
+            [targetRest]: occupant,
+          }
+          // اگر استراحت ساختاری پر شد، شمارنده استراحت سربرگ هم باید کم شود
+          const structure = draw.structure.restSlotIds.includes(targetRest)
+            ? {
+                ...draw.structure,
+                restSlotIds: draw.structure.restSlotIds.filter((id) => id !== targetRest),
+              }
+            : draw.structure
+          set({
+            participants,
+            draws: {
+              ...get().draws,
+              [groupId]: {
+                ...draw,
+                group,
+                structure,
+                assignments,
+                initialAssignments,
+                history: [
+                  ...draw.history.slice(-historyLimit + 1),
+                  draw.assignments,
+                ],
+              },
+            },
+          })
+          return 'placed'
+        }
+
+        // ————— جدول باران مدال: ظرفیت ۴ نفره ثابت است — رشد ندارد
+        const medalInfo = get().medalRainTables[groupId]
+        if (medalInfo) {
+          if (group.participantIds.length >= 4) return 'full'
+          // جدول های ۲/۳ نفره باران مدال تا ۴ نفر رشد می کنند — قرعه از نو
+          const participantsById: Record<string, Participant> = {}
+          for (const participant of participants) participantsById[participant.id] = participant
+          const bronze = medalInfo.bronze && group.participantIds.length === 4
+          const next = generateGroupDraw(group, participantsById, tournamentRules, { bronze })
+          set({
+            participants,
+            draws: { ...get().draws, [groupId]: next },
+          })
+          return 'grown'
+        }
+
+        // ————— جدول واقعی پر است: برگه به اندازه بعدی بزرگ می شود — قرعه از نو
+        const participantsById: Record<string, Participant> = {}
+        for (const participant of participants) participantsById[participant.id] = participant
+        const next = generateGroupDraw(group, participantsById, tournamentRules)
+        // ساختار عوض شده — شماره های دستی این جدول دیگر معنا ندارند
+        const overrides = { ...get().matchNumberOverrides }
+        delete overrides[groupId]
+        set({
+          participants,
+          draws: { ...get().draws, [groupId]: next },
+          matchNumberOverrides: overrides,
+        })
+        return 'grown'
+      },
+
+      removeParticipant: (groupId, participantId) => {
+        const draw = get().draws[groupId]
+        if (!draw || !draw.group.participantIds.includes(participantId)) return
+
+        // ————— جدول دستی: خانه ها ثابت اند — فقط نام و مربی پاک می شود
+        if (get().manualTables[groupId]) {
+          get().updateParticipant(participantId, { fullName: '', coachName: '' })
+          return
+        }
+
+        // هر خانه ای که این هنرجو در آن نشسته — در چیدمان فعلی، چیدمان اولیه
+        // و همه لحظه های تاریخچه واگرد — بی نام و به خانه استراحت بدل می شود
+        const neutralize = (assignments: SlotAssignments): SlotAssignments => {
+          let changed = false
+          const next: SlotAssignments = {}
+          for (const [slotId, occupant] of Object.entries(assignments)) {
+            if (occupant.kind === 'participant' && occupant.participantId === participantId) {
+              next[slotId] = { kind: 'bye' }
+              changed = true
+            } else {
+              next[slotId] = occupant
+            }
+          }
+          return changed ? next : assignments
+        }
+
+        const assignments = neutralize(draw.assignments)
+        const initialAssignments = neutralize(draw.initialAssignments)
+        const history = draw.history.map(neutralize)
+        const group = {
+          ...draw.group,
+          participantIds: draw.group.participantIds.filter((id) => id !== participantId),
+        }
+        // خانه هایی که با این حذف استراحت شدند و ساختاری نبودند — به شمارنده
+        // استراحت سربرگ اضافه می شوند تا آمار برگه راست بگوید
+        const grownRestSlots = Object.entries(assignments)
+          .filter(
+            ([slotId, occupant]) =>
+              occupant.kind === 'bye' && !draw.structure.restSlotIds.includes(slotId),
+          )
+          .map(([slotId]) => slotId)
+        const structure = grownRestSlots.length
+          ? { ...draw.structure, restSlotIds: [...draw.structure.restSlotIds, ...grownRestSlots] }
+          : draw.structure
+
+        const participants = get().participants.filter(
+          (participant) => participant.id !== participantId,
+        )
+
+        // ————— جدول بی هنرجو شد: کل جدول جمع می شود
+        if (group.participantIds.length === 0) {
+          const overrides = { ...get().matchNumberOverrides }
+          delete overrides[groupId]
+          const wasSelected = get().selectedGroupId === groupId
+          set({
+            participants,
+            draws: Object.fromEntries(
+              Object.entries(get().draws).filter(([id]) => id !== groupId),
+            ),
+            medalRainTables: Object.fromEntries(
+              Object.entries(get().medalRainTables).filter(([id]) => id !== groupId),
+            ),
+            matchNumberOverrides: overrides,
+            // رد وزن مرده از برنامه زمین ها هم برداشته می شود
+            scheduleSessions: get().scheduleSessions.map((session) => ({
+              ...session,
+              mats: session.mats.map((mat) => ({
+                ...mat,
+                groupIds: mat.groupIds.filter((id) => id !== groupId),
+              })),
+            })),
+            ...(wasSelected ? { selectedGroupId: null, page: 'groups' as const } : {}),
+          })
+          return
+        }
+
+        const medalInfo = get().medalRainTables[groupId]
+        set({
+          participants,
+          draws: {
+            ...get().draws,
+            [groupId]: { ...draw, group, structure, assignments, initialAssignments, history },
+          },
+          medalRainTables: medalInfo
+            ? {
+                ...get().medalRainTables,
+                [groupId]: {
+                  ...medalInfo,
+                  participantIds: medalInfo.participantIds.filter(
+                    (id) => id !== participantId,
+                  ),
+                },
+              }
+            : get().medalRainTables,
+        })
+      },
 
       createMedalRainTables: ({ title, matLabel, attendTime, bronze, pools, replace, fileName }) => {
         const validPools = pools

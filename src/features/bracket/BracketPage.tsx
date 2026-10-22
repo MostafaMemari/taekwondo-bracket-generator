@@ -9,6 +9,7 @@ import {
   Shuffle,
   Trophy,
   Undo2,
+  UserPlus,
   Users,
 } from 'lucide-react'
 import { useTournament, isManualGroupId } from '../../store/tournamentStore.ts'
@@ -17,6 +18,7 @@ import { Button } from '../../components/Button.tsx'
 import { BeltSelect } from '../../components/BeltSelect.tsx'
 import { groupTitle } from '../../lib/formatFa.ts'
 import { findSoloParticipant } from '../../lib/soloDraw.ts'
+import { AddStudentDialog } from './AddStudentDialog.tsx'
 import { BracketCanvas } from './BracketCanvas.tsx'
 import { CoachPanel } from './CoachPanel.tsx'
 
@@ -42,6 +44,8 @@ export function BracketPage() {
   // the coach drawer floats OVER the canvas (closed by default) — the bracket
   // always keeps the full page width, even for 16/32 sheets
   const [coachPanelOpen, setCoachPanelOpen] = useState(false)
+  // گفت وگوی «افزودن هنرجو» — از دکمه نوار بالا یا کلیک روی خانه استراحت
+  const [addDialog, setAddDialog] = useState<{ targetSlotId: string | null } | null>(null)
 
   // مدل زنده برنامه: نقشه شرکت کننده ها و شماره های زنده مسابقه ها
   const { participantsById, matchNumbers } = useScheduleModel()
@@ -96,6 +100,14 @@ export function BracketPage() {
           >
             <Users size={16} />
             مربی ها و هنرجوها
+          </Button>
+          <Button
+            variant="subtle"
+            onClick={() => setAddDialog({ targetSlotId: null })}
+            title="افزودن هنرجوی تازه به این وزن — اگر جای استراحت باشد همان جا می نشیند"
+          >
+            <UserPlus size={16} />
+            افزودن هنرجو
           </Button>
           <Button
             variant="subtle"
@@ -253,7 +265,11 @@ export function BracketPage() {
             </div>
           )}
           <div className="relative">
-            <BracketCanvas draw={draw} matchNumbers={matchNumbers} />
+            <BracketCanvas
+              draw={draw}
+              matchNumbers={matchNumbers}
+              onAddAtRest={(slotId) => setAddDialog({ targetSlotId: slotId })}
+            />
             {coachPanelOpen && (
               <CoachPanel
                 draw={draw}
@@ -263,6 +279,13 @@ export function BracketPage() {
             )}
           </div>
         </div>
+      )}
+      {addDialog && (
+        <AddStudentDialog
+          groupId={draw.groupId}
+          targetSlotId={addDialog.targetSlotId}
+          onClose={() => setAddDialog(null)}
+        />
       )}
     </div>
   )

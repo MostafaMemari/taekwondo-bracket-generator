@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FocusEvent } from 'react'
+import { Trash2 } from 'lucide-react'
 import type { Participant } from '../../core/types.ts'
 import type { SlotSide } from '../../core/bracket/layout.ts'
 import { sideTheme } from './sideColors.ts'
@@ -8,15 +9,30 @@ interface ManualSlotEditorProps {
   side: SlotSide
   onSave: (patch: { fullName: string; coachName: string }) => void
   onCancel: () => void
+  /**
+   * حذف هنرجو از این خانه — دکمه سطل زباله گوشه ویرایشگر؛ جدول دستی نام خانه
+   * را خالی می کند و جدول واقعی هنرجو را کامل حذف می کند (خانه استراحت می شود)
+   */
+  onDelete?: () => void
+  /** پیام تایید حذف — هر نوع جدول جمله خودش را دارد */
+  deleteConfirmText?: string
 }
 
 /**
- * ویرایشگر درون خانه جدول دستی: دو ورودی کوچک روی خود کارت — نام هنرجو و
- * مربی. Enter در نام به مربی می رود، Enter در مربی ثبت می کند، Escape بی خیال،
- * خروج از ورودی ها هم ثبت است. همه چیز روی خود خانه می نشیند تا کاربر جای
- * خانه را گم نکند (رنگ حلقه = رنگ ضلع همان گوشه آبی/قرمز).
+ * ویرایشگر درون خانه: دو ورودی کوچک روی خود کارت — نام هنرجو و مربی. Enter در
+ * نام به مربی می رود، Enter در مربی ثبت می کند، Escape بی خیال، خروج از
+ * ورودی ها هم ثبت است. همه چیز روی خود خانه می نشیند تا کاربر جای خانه را گم
+ * نکند (رنگ حلقه = رنگ ضلع همان گوشه آبی/قرمز). دکمه سطل زباله گوشه کارت،
+ * حذف هنرجو را با تایید انجام می دهد.
  */
-export function ManualSlotEditor({ participant, side, onSave, onCancel }: ManualSlotEditorProps) {
+export function ManualSlotEditor({
+  participant,
+  side,
+  onSave,
+  onCancel,
+  onDelete,
+  deleteConfirmText,
+}: ManualSlotEditorProps) {
   const theme = sideTheme[side]
   const [fullName, setFullName] = useState(participant.fullName)
   const [coachName, setCoachName] = useState(participant.coachName)
@@ -51,11 +67,26 @@ export function ManualSlotEditor({ participant, side, onSave, onCancel }: Manual
   return (
     <div
       dir="rtl"
-      className="flex h-full w-full flex-col justify-center gap-1 rounded-md bg-white px-1.5"
+      className="relative flex h-full w-full flex-col justify-center gap-1 rounded-md bg-white px-1.5"
       style={{ boxShadow: `0 0 0 2px ${theme.accent}` }}
       onBlur={handleBlur}
       onClick={(event) => event.stopPropagation()}
     >
+      {onDelete && (
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={(event) => {
+            event.stopPropagation()
+            if (!deleteConfirmText || window.confirm(deleteConfirmText)) onDelete()
+          }}
+          aria-label="حذف این هنرجو"
+          title={deleteConfirmText ? 'حذف' : undefined}
+          className="absolute left-1 top-1/2 flex size-[22px] -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
       <input
         ref={nameRef}
         value={fullName}

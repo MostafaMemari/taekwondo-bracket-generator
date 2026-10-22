@@ -21,7 +21,10 @@ import {
 } from "../../core/bracket/layout.ts";
 import type { GroupDraw, Participant } from "../../core/types.ts";
 import type { LayoutMatch, PlanLeaf } from "../../core/bracket/layout.ts";
-import { useTournament } from "../../store/tournamentStore.ts";
+import {
+  isManualGroupId,
+  useTournament,
+} from "../../store/tournamentStore.ts";
 import { toFaDigits } from "../../lib/formatFa.ts";
 import {
   matchChipFactor,
@@ -44,25 +47,27 @@ const dims = interactiveLayoutDims;
 export function BracketCanvas({
   draw,
   matchNumbers,
+  /** کلیک روی خانه استراحت — باز کردن گفت وگوی «افزودن هنرجو» در همین خانه */
+  onAddAtRest,
 }: {
   draw: GroupDraw;
   /** شماره نمایشی هر مسابقه — کلید «groupId/matchId» (برنامه زنده + شماره های دستی) */
   matchNumbers?: Map<string, string>;
+  onAddAtRest?: (slotId: string) => void;
 }) {
   const participants = useTournament((state) => state.participants);
   const moveParticipant = useTournament((state) => state.moveParticipant);
-  const manualTables = useTournament((state) => state.manualTables);
+  const removeParticipant = useTournament((state) => state.removeParticipant);
   const updateParticipant = useTournament((state) => state.updateParticipant);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   // کشیدن گوشه «استراحت» — روکش شبح استراحت به جای کارت هنرجو رندر می شود
   const [activeIsRest, setActiveIsRest] = useState(false);
-  // جدول دستی: خانه در حال ویرایش + نگهبان «تازه کشیده شد» تا رها کردن کارت
+  // خانه در حال ویرایش (نام/مربی) + نگهبان «تازه کشیده شد» تا رها کردن کارت
   // بی دلیل ویرایشگر را باز نکند (کلیک بعد از درگ رویداد click هم می گذارد)
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const dragJustEnded = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const manualInfo = manualTables[draw.groupId];
-  const isManual = Boolean(manualInfo);
+  const isManual = isManualGroupId(draw.groupId);
 
   // open on the finale: the page is RTL, so the browser parks the scroll at
   // the right end — centre the final instead, it is the focal point
@@ -141,9 +146,14 @@ export function BracketCanvas({
     }
   }
 
-  function startManualEdit(slotId: string) {
-    if (!isManual || dragJustEnded.current) return;
+  function startSlotEdit(slotId: string) {
+    if (dragJustEnded.current) return;
     setEditingSlotId(slotId);
+  }
+
+  function handleRestClick(slotId: string) {
+    if (dragJustEnded.current) return;
+    onAddAtRest?.(slotId);
   }
 
   function renderSlot(
@@ -164,16 +174,24 @@ export function BracketCanvas({
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
         barSide={barSide}
-        manualEdit={
-          isManual && participant
+        onRestClick={onAddAtRest ? handleRestClick : undefined}
+        slotEdit={
+          participant
             ? {
                 editing: editingSlotId === slotId,
-                onStart: () => startManualEdit(slotId),
+                onStart: () => startSlotEdit(slotId),
                 onSave: (patch) => {
                   updateParticipant(participant.id, patch);
                   setEditingSlotId(null);
                 },
                 onEnd: () => setEditingSlotId(null),
+                onDelete: () => {
+                  setEditingSlotId(null);
+                  removeParticipant(draw.groupId, participant.id);
+                },
+                deleteConfirmText: isManual
+                  ? "نام این خانه پاک شود؟ خانه خالی در جدول می ماند."
+                  : "این هنرجو از جدول حذف شود؟ جای او «استراحت» می شود.",
               }
             : undefined
         }

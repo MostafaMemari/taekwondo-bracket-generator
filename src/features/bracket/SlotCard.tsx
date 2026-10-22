@@ -6,12 +6,16 @@ import { ParticipantChip } from './ParticipantChip.tsx'
 import { EmptySlotRow, ByeRow, PositionRow } from './SlotRows.tsx'
 import { ManualSlotEditor } from './ManualSlotEditor.tsx'
 
-/** کلیدهای ویرایش درون خانه — فقط جدول های دستی */
-export interface ManualEditProps {
+/** کلیدهای ویرایش درون خانه — همه جدول ها: دستی، باران مدال و واقعی */
+export interface SlotEditProps {
   editing: boolean
   onStart: () => void
   onSave: (patch: { fullName: string; coachName: string }) => void
   onEnd: () => void
+  /** حذف هنرجو از این خانه — دکمه سطل زباله داخل ویرایشگر */
+  onDelete?: () => void
+  /** جمله تایید حذف — جدول دستی و جدول واقعی جمله خودشان را دارند */
+  deleteConfirmText?: string
 }
 
 interface SlotCardProps {
@@ -24,8 +28,10 @@ interface SlotCardProps {
   showCoach?: boolean
   /** لبه نوار رنگی — نیمه چپ برگه «چپ» می گیرد */
   barSide?: BarSide
-  /** جدول دستی: کلیک روی خانه، ورودی نام/مربی را باز می کند */
-  manualEdit?: ManualEditProps
+  /** کلیک روی هنرجو، ورودی نام/مربی را باز می کند */
+  slotEdit?: SlotEditProps
+  /** کلیک روی خانه استراحت — گفت وگوی «افزودن هنرجو» را باز می کند */
+  onRestClick?: (slotId: string) => void
 }
 
 export function SlotCard({
@@ -37,7 +43,8 @@ export function SlotCard({
   coachFontSize,
   showCoach,
   barSide,
-  manualEdit,
+  slotEdit,
+  onRestClick,
 }: SlotCardProps) {
   const isBye = occupant.kind === 'bye'
 
@@ -64,8 +71,9 @@ export function SlotCard({
           ref={restDrag.setNodeRef}
           {...restDrag.listeners}
           {...restDrag.attributes}
-          title="بکش و روی هر خانه ای رها کن تا استراحت همان جا بنشیند"
-          aria-label="انتقال استراحت"
+          onClick={onRestClick ? () => onRestClick(slotId) : undefined}
+          title="برای افزودن هنرجو کلیک کن، یا بکش و روی هر خانه ای رها کن تا استراحت همان جا بنشیند"
+          aria-label="انتقال استراحت یا افزودن هنرجو"
           className={`h-full w-full cursor-grab touch-none transition-opacity active:cursor-grabbing ${
             restDrag.isDragging ? 'opacity-30' : ''
           }`}
@@ -74,23 +82,25 @@ export function SlotCard({
         </div>
       )
     }
-    if (manualEdit && participant && manualEdit.editing) {
+    if (slotEdit && participant && slotEdit.editing) {
       return (
         <ManualSlotEditor
           participant={participant}
           side={side}
-          onSave={manualEdit.onSave}
-          onCancel={manualEdit.onEnd}
+          onSave={slotEdit.onSave}
+          onCancel={slotEdit.onEnd}
+          onDelete={slotEdit.onDelete}
+          deleteConfirmText={slotEdit.deleteConfirmText}
         />
       )
     }
     if (participant) {
       // خانه بی نام جدول دستی: دعوت به نوشتن به جای ردیف رنگی خالی
-      if (manualEdit && participant.fullName.trim() === '') {
+      if (slotEdit && participant.fullName.trim() === '') {
         return (
           <button
             type="button"
-            onClick={manualEdit.onStart}
+            onClick={slotEdit.onStart}
             title="نوشتن نام و مربی"
             className="h-full w-full cursor-text"
           >
@@ -107,7 +117,7 @@ export function SlotCard({
           coachFontSize={coachFontSize}
           showCoach={showCoach}
           barSide={barSide}
-          onEditStart={manualEdit?.onStart}
+          onEditStart={slotEdit?.onStart}
         />
       )
     }

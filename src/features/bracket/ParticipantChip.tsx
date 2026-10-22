@@ -40,6 +40,7 @@ export function ParticipantChip({
       {...attributes}
       onClick={onEditStart}
       aria-label={`جابه جایی ${participant.fullName}`}
+      title="برای جابه جایی بکش؛ برای ویرایش نام و مربی کلیک کن"
       className={`h-full w-full cursor-grab touch-none transition-opacity active:cursor-grabbing ${
         isDragging ? 'opacity-30' : ''
       }`}

@@ -14,7 +14,7 @@ export function applySlotSwap(
   const fromOccupant = assignments[fromSlotId]
   const toOccupant = assignments[toSlotId]
   if (!fromOccupant || !toOccupant || fromSlotId === toSlotId) return null
-  // حداقل یک طرف باید هنرجو باشد — جابه‌جایی استراحت با استراحت بی معنی است
+  // حداقل یک طرف باید هنرجو باشد — جابه جایی استراحت با استراحت بی معنی است
   if (fromOccupant.kind !== 'participant' && toOccupant.kind !== 'participant') return null
 
   return {
