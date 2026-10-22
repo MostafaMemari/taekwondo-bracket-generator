@@ -82,7 +82,9 @@ export function BracketPage() {
             <h1 className="font-display text-2xl leading-7 text-ink-900">
               {groupTitle(draw.group.ageCategory, draw.group.weightCategory)}
             </h1>
-            <p className="text-xs text-muted">تخته قرعه حذفی — چیدمان دستی با کشیدن کارت ها</p>
+            <p className="text-xs text-muted">
+              تخته قرعه حذفی — چیدمان دستی با کشیدن کارت ها و انتقال استراحت
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -231,7 +233,9 @@ export function BracketPage() {
                 <Info size={14} className="shrink-0" />
                 اگر «برنامه ریزی زمین ها» ساخته باشد، شماره هر مسابقه خودش روی دایره کنار باکسش
                 می نشیند؛ با کلیک روی دایره می توانید آن را دستی عوض کنید. کارت را بکشید و رها کنید
-                تا جای دو نفر عوض شود.
+                تا جای دو نفر عوض شود؛ گوشه «استراحت» را هم می توانید بکشید و روی هر هنرجو رها کنید
+                (یا هنرجو را روی گوشه استراحت رها کنید) تا استراحت به او برسد — شماره مسابقه ها هم
+                خودبه خود درست می مانند.
               </p>
               <span className="flex-1" />
               <label

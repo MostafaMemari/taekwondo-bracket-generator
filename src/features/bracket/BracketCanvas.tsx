@@ -53,6 +53,8 @@ export function BracketCanvas({
   const manualTables = useTournament((state) => state.manualTables);
   const updateParticipant = useTournament((state) => state.updateParticipant);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
+  // کشیدن گوشه «استراحت» — روکش شبح استراحت به جای کارت هنرجو رندر می شود
+  const [activeIsRest, setActiveIsRest] = useState(false);
   // جدول دستی: خانه در حال ویرایش + نگهبان «تازه کشیده شد» تا رها کردن کارت
   // بی دلیل ویرایشگر را باز نکند (کلیک بعد از درگ رویداد click هم می گذارد)
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -114,14 +116,25 @@ export function BracketCanvas({
     return data?.slotId;
   }
 
+  function isRestFrom(event: DragStartEvent | DragEndEvent): boolean {
+    const data = event.active.data.current as { isRest?: boolean } | undefined;
+    return data?.isRest === true;
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     setActiveSlotId(null);
+    setActiveIsRest(false);
     dragJustEnded.current = true;
     window.setTimeout(() => {
       dragJustEnded.current = false;
     }, 250);
     const fromSlotId = slotIdFrom(event);
-    const toSlotId = event.over?.id;
+    // مقصد همیشه از data می آید: خانه هنرجو شناسه خودش را می فرستد و گوشه
+    // «استراحت» شناسه همسایه اش (صاحب کنونی استراحت) — پس رها کردن روی استراحت
+    // هم همان تعویض دو هنرجو می شود و ساختار جدول دست نمی خورد (شماره ها اوکی می مانند)
+    const overData = event.over?.data.current as { slotId?: string } | undefined;
+    const toSlotId =
+      overData?.slotId ?? (typeof event.over?.id === "string" ? event.over.id : undefined);
     if (typeof fromSlotId === "string" && typeof toSlotId === "string" && fromSlotId !== toSlotId) {
       moveParticipant(draw.groupId, fromSlotId, toSlotId);
     }
@@ -132,7 +145,12 @@ export function BracketCanvas({
     setEditingSlotId(slotId);
   }
 
-  function renderSlot(slotId: string, side: SlotSide, barSide?: "left" | "right") {
+  function renderSlot(
+    slotId: string,
+    side: SlotSide,
+    barSide?: "left" | "right",
+    restSwapSlotId?: string | null,
+  ) {
     const occupant = draw.assignments[slotId];
     const participant =
       occupant.kind === "participant" ? participantsById.get(occupant.participantId) : undefined;
@@ -146,6 +164,7 @@ export function BracketCanvas({
         coachFontSize={dims.subFontSize}
         showCoach={dims.showCoach}
         barSide={barSide}
+        restSwapSlotId={restSwapSlotId}
         manualEdit={
           isManual && participant
             ? {
@@ -173,7 +192,17 @@ export function BracketCanvas({
     if (leaf?.kind !== "slot") {
       return <PositionRow side={side} />;
     }
-    return renderSlot(leaf.slotId, side, barSide);
+    // گوشه «استراحت» — همسایه اش (صاحب کنونی استراحت) مقصد تعویض است تا
+    // کشیدن استراحت روی هر هنرجو یا رها کردن هنرجو روی این گوشه، استراحت را
+    // منتقل کند؛ اسلات استراحت سر جایش می ماند و شماره مسابقه ها ثابت می ماند
+    let restSwapSlotId: string | undefined;
+    if (match) {
+      const siblingSlotId =
+        match.topSlotId === leaf.slotId ? match.bottomSlotId : match.topSlotId;
+      const sibling = siblingSlotId ? draw.assignments[siblingSlotId] : undefined;
+      if (siblingSlotId && sibling?.kind === "participant") restSwapSlotId = siblingSlotId;
+    }
+    return renderSlot(leaf.slotId, side, barSide, restSwapSlotId);
   }
 
   const activeOccupant = activeSlotId ? draw.assignments[activeSlotId] : undefined;
@@ -186,9 +215,15 @@ export function BracketCanvas({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragStart={(event) => setActiveSlotId(slotIdFrom(event) ?? null)}
+      onDragStart={(event) => {
+        setActiveSlotId(slotIdFrom(event) ?? null);
+        setActiveIsRest(isRestFrom(event));
+      }}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveSlotId(null)}
+      onDragCancel={() => {
+        setActiveSlotId(null);
+        setActiveIsRest(false);
+      }}
     >
       <div ref={scrollRef} className="overflow-auto rounded-xl border border-line bg-white">
         <div
@@ -277,7 +312,24 @@ export function BracketCanvas({
       </div>
 
       <DragOverlay dropAnimation={null}>
-        {activeParticipant ? (
+        {activeIsRest ? (
+          // شبح استراحت — همان نمای خانه استراحت با سایه بلندتر
+          <div
+            dir="rtl"
+            className="flex h-16 w-[216px] items-center justify-center rounded-md border-2 border-dashed shadow-lg"
+            style={{
+              borderColor: classicTheme.sides.chong.borderSoft,
+              backgroundColor: classicTheme.byeBg,
+            }}
+          >
+            <span
+              className="text-[11px] font-bold"
+              style={{ color: classicTheme.sides.chong.accent, opacity: 0.6 }}
+            >
+              استراحت
+            </span>
+          </div>
+        ) : activeParticipant ? (
           <div
             dir="rtl"
             className="flex w-[216px] items-stretch overflow-hidden rounded-md shadow-lg"
