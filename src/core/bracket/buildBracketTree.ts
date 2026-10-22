@@ -1,4 +1,4 @@
-import type { ByePlacementId } from '../../lib/drawModes.ts'
+import type { ByeMajorityId, ByePlacementId } from '../../lib/drawModes.ts'
 import type {
   BracketStructure,
   BracketStructureNode,
@@ -68,13 +68,19 @@ function mirrorMode(from: number, to: number, wingRows: number): SplitMode {
  * استراحت گیرنده روی برگه (طبق الگوی قرعه کشی):
  *   ۱) اولین مسابقه نیمه چپ   ۲) اولین مسابقه نیمه راست
  *   ۳) آخرین مسابقه نیمه چپ   ۴) آخرین مسابقه نیمه راست
- *   ۵) بعدی سمت راست، مسابقه دوم از بالا («سمت راست جدول قسمت بالا») —
- *      و پس از آن یکی در میان راست/چپ، از بالا به سمت وسط هر نیمه.
+ *   ۵) به بعد — استراحت های اضافی به سمت «اکثریت استراحت ها» می روند و از
+ *      بالای همان سمت یکی در میان با سمت مقابل به سمت وسط نیمه می نشینند
+ *      («سمت راست جدول قسمت بالا» با پیش فرض راست).
  * هر مسابقه دور یک یا «استراحت دار» است (هنرجو خانه بالا، استراحت خانه پایین)
  * یا «واقعی» (دو هنرجو)؛ استراحت ها به ترتیب همین اولویت مسابقه برمی دارند و
- * شمار هنرجوی هر نیمه از دل همین چینش در می آید — ۵ استراحت: ۲ چپ و ۳ راست.
+ * شمار هنرجوی هر نیمه از دل همین چینش در می آید — با اکثریت راست ۵ استراحت
+ * ۲ چپ و ۳ راست می شود و با اکثریت چپ ۳ چپ و ۲ راست.
  */
-function buildCornerByeTree(participantCount: number, bracketSize: number): RawNode {
+function buildCornerByeTree(
+  participantCount: number,
+  bracketSize: number,
+  majority: ByeMajorityId,
+): RawNode {
   const wingMatches = bracketSize / 4
   const priority: Array<['left' | 'right', number]> = [
     ['left', 0],
@@ -83,7 +89,11 @@ function buildCornerByeTree(participantCount: number, bracketSize: number): RawN
     ['right', wingMatches - 1],
   ]
   for (let index = 1; index <= wingMatches - 2; index += 1) {
-    priority.push(['right', index], ['left', index])
+    if (majority === 'left') {
+      priority.push(['left', index], ['right', index])
+    } else {
+      priority.push(['right', index], ['left', index])
+    }
   }
   const byeCount = Math.min(bracketSize - participantCount, priority.length)
   const byeMatches = new Set<string>()
@@ -150,6 +160,11 @@ function buildWingedTree(
 export interface BuildBracketOptions {
   /** جایگاه استراحت ها — پیش فرض آینه ای دو طرف (رفتار همیشگی) */
   byePlacement?: ByePlacementId
+  /**
+   * اکثریت استراحت ها — فقط در چیدمان «همیشه زیر اسم»؛ سمت ای که استراحت
+   * های اضافی (پنجم به بعد) می گیرند. پیش فرض راست (رفتار همیشگی).
+   */
+  byeMajority?: ByeMajorityId
 }
 
 export function buildBracketTree(participantCount: number, options: BuildBracketOptions = {}): BracketStructure {
@@ -169,7 +184,7 @@ export function buildBracketTree(participantCount: number, options: BuildBracket
   // برگه دو نفره: همان ساختار همیشگی
   const root =
     options.byePlacement === 'belowName' && bracketSize >= 4
-      ? buildCornerByeTree(participantCount, bracketSize)
+      ? buildCornerByeTree(participantCount, bracketSize, options.byeMajority ?? 'right')
       : buildWingedTree(participantCount, bracketSize, options.byePlacement ?? 'mirror')
 
   const leaves: StructureLeaf[] = []

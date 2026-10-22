@@ -18,8 +18,10 @@ import {
 } from '../lib/matchChipStyles.ts'
 import { isTableThemeId, type TableThemeId } from '../lib/tableThemes.ts'
 import {
+  normalizeByeMajorityId,
   normalizeByePlacementId,
   normalizeDrawTypeId,
+  type ByeMajorityId,
   type ByePlacementId,
   type DrawTypeId,
 } from '../lib/drawModes.ts'
@@ -313,21 +315,34 @@ interface TournamentState {
    */
   byePlacementId: ByePlacementId
   setByePlacementId: (id: ByePlacementId) => void
+  /**
+   * اکثریت استراحت ها — فقط در چیدمان «همیشه زیر اسم»؛ سمت ای که استراحت
+   * های اضافی (پنجم به بعد) می گیرند: پیش فرض راست (۵ استراحت: ۲ چپ و ۳
+   * راست) و سمت چپ (۵ استراحت: ۳ چپ و ۲ راست). با تغییرش مثل بقیه انتخاب
+   * های قرعه همه جدول های واقعی از نو چیده می شوند.
+   */
+  byeMajorityId: ByeMajorityId
+  setByeMajorityId: (id: ByeMajorityId) => void
 }
 
 const historyLimit = 40
 
 /** گزینه های قرعه کشی از تنظیمات فعلی — به generateGroupDraw پاس داده می شود */
 function drawOptions(
-  state: { drawTypeId: DrawTypeId; byePlacementId: ByePlacementId },
+  state: { drawTypeId: DrawTypeId; byePlacementId: ByePlacementId; byeMajorityId: ByeMajorityId },
   bronze = false,
-): { bronze: boolean; drawType: DrawTypeId; byePlacement: ByePlacementId } {
-  return { bronze, drawType: state.drawTypeId, byePlacement: state.byePlacementId }
+): { bronze: boolean; drawType: DrawTypeId; byePlacement: ByePlacementId; byeMajority: ByeMajorityId } {
+  return {
+    bronze,
+    drawType: state.drawTypeId,
+    byePlacement: state.byePlacementId,
+    byeMajority: state.byeMajorityId,
+  }
 }
 
 function buildDraws(
   participants: Participant[],
-  options: { drawType?: DrawTypeId; byePlacement?: ByePlacementId } = {},
+  options: { drawType?: DrawTypeId; byePlacement?: ByePlacementId; byeMajority?: ByeMajorityId } = {},
 ): Record<string, GroupDraw> {
   const participantsById = Object.fromEntries(participants.map((p) => [p.id, p]))
   return Object.fromEntries(
@@ -387,6 +402,14 @@ export const useTournament = create<TournamentState>()(
         const next = normalizeByePlacementId(id)
         if (next === get().byePlacementId) return
         set({ byePlacementId: next })
+        get().redrawAllRealGroups()
+      },
+      // اکثریت استراحت ها پیش فرض سمت راست است — همان رفتار همیشگی
+      byeMajorityId: 'right' as ByeMajorityId,
+      setByeMajorityId: (id) => {
+        const next = normalizeByeMajorityId(id)
+        if (next === get().byeMajorityId) return
+        set({ byeMajorityId: next })
         get().redrawAllRealGroups()
       },
 
@@ -1153,7 +1176,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 18,
+      version: 19,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -1176,6 +1199,8 @@ export const useTournament = create<TournamentState>()(
         //      v17: طرح برگه (کلاسیک/مدرن) — ذخیره های قدیمی کلاسیک شروع می کنند
         //      v18: نوع قرعه کشی و چیدمان استراحت — ذخیره های قدیمی با همان
         //           رفتار همیشگی شروع می کنند (جداسازی هم تیمی ها + آینه ای)
+        //      v19: اکثریت استراحت ها (راست/چپ در چیدمان «همیشه زیر اسم») —
+        //           ذخیره های قدیمی سمت راست شروع می کنند
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -1186,7 +1211,12 @@ export const useTournament = create<TournamentState>()(
             : {}
         const drawTypeId = normalizeDrawTypeId(state.drawTypeId)
         const byePlacementId = normalizeByePlacementId(state.byePlacementId)
-        const draws = buildDraws(participants, { drawType: drawTypeId, byePlacement: byePlacementId })
+        const byeMajorityId = normalizeByeMajorityId(state.byeMajorityId)
+        const draws = buildDraws(participants, {
+          drawType: drawTypeId,
+          byePlacement: byePlacementId,
+          byeMajority: byeMajorityId,
+        })
         for (const [groupId, info] of Object.entries(medalRainTables)) {
           const draw = draws[groupId]
           if (draw && info.bronze) {
@@ -1229,6 +1259,7 @@ export const useTournament = create<TournamentState>()(
           sheetLayout: normalizeSheetLayoutId(state.sheetLayout),
           drawTypeId,
           byePlacementId,
+          byeMajorityId,
         }
       },
       partialize: (state) => ({
@@ -1253,6 +1284,7 @@ export const useTournament = create<TournamentState>()(
         sheetLayout: state.sheetLayout,
         drawTypeId: state.drawTypeId,
         byePlacementId: state.byePlacementId,
+        byeMajorityId: state.byeMajorityId,
       }),
     },
   ),

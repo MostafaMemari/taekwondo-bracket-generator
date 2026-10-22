@@ -14,11 +14,16 @@
  *    می شوند — ۲ استراحت: یکی چپ یکی راست؛ ۵ استراحت: ۳ چپ و ۲ راست.
  *  - همیشه زیر اسم (قانون چهارگوشه): استراحت در هر جفت خانه پایین است — اسم
  *    بالا، استراحت زیر آن — و ترتیب نشستن استراحت ها روی برگه: اول بالای
- *    چپ، بعد بالای راست، بعد پایین چپ و پایین راست؛ استراحت بعدی سمت راست
- *    قسمت بالای جدول می نشیند و بقیه یکی در میان راست/چپ تا وسط نیمه ها
- *    (۵ استراحت: ۲ چپ و ۳ راست).
+ *    چپ، بعد بالای راست، بعد پایین چپ و پایین راست؛ استراحت های اضافی به
+ *    سمت «اکثریت استراحت ها» می روند و از بالای همان سمت به وسط نیمه
+ *    می نشینند.
  *
- * هر دو انتخاب شخصی اند و با ورود فهرست جدید عوض نمی شوند؛ با تغییرشان همه
+ *  «اکثریت استراحت ها» سمت ای است که در چیدمان «همیشه زیر اسم» استراحت های
+ *  اضافی (پنجم به بعد) را می گیرد:
+ *  - سمت راست (پیش فرض): ۵ استراحت → ۲ چپ و ۳ راست.
+ *  - سمت چپ: ۵ استراحت → ۳ چپ و ۲ راست.
+ *
+ * هر سه انتخاب شخصی اند و با ورود فهرست جدید عوض نمی شوند؛ با تغییرشان همه
  * قرعه های واقعی و باران مدال از نو چیده می شود (جدول های دستی که اسامی
  * تایپی دارند دست نمی خورند).
  */
@@ -76,9 +81,43 @@ export const byePlacements: readonly ByePlacementInfo[] = [
   {
     id: 'belowName',
     name: 'همیشه زیر اسم',
-    hint: 'استراحت زیر اسم می نشیند — اول بالای چپ، بعد بالای راست، بعد پایین چپ و پایین راست؛ بعدی سمت راست قسمت بالای جدول',
+    hint: 'استراحت زیر اسم می نشیند — اول بالای چپ، بعد بالای راست، بعد پایین چپ و پایین راست؛ بعدی سمت اکثریت استراحت ها',
   },
 ]
+
+export type ByeMajorityId = 'right' | 'left'
+
+export interface ByeMajorityInfo {
+  id: ByeMajorityId
+  /** نام فارسی — در تنظیمات */
+  name: string
+  /** توضیح یک خطی زیر نام در تنظیمات */
+  hint: string
+}
+
+export const byeMajoritySides: readonly ByeMajorityInfo[] = [
+  {
+    id: 'right',
+    name: 'سمت راست',
+    hint: 'استراحت های اضافی سمت راست می نشینند — ۵ استراحت: ۲ چپ و ۳ راست (پیش فرض)',
+  },
+  {
+    id: 'left',
+    name: 'سمت چپ',
+    hint: 'استراحت های اضافی سمت چپ می نشینند — ۵ استراحت: ۳ چپ و ۲ راست',
+  },
+]
+
+const byeMajorityIds: ReadonlySet<string> = new Set(byeMajoritySides.map((side) => side.id))
+
+export function isByeMajorityId(value: unknown): value is ByeMajorityId {
+  return typeof value === 'string' && byeMajorityIds.has(value)
+}
+
+/** اکثریت معتبر استراحت ها از store — مقدار نامعتبر/قدیمی بی درنگ پیش فرض می شود */
+export function normalizeByeMajorityId(value: unknown): ByeMajorityId {
+  return isByeMajorityId(value) ? value : 'right'
+}
 
 const byePlacementIds: ReadonlySet<string> = new Set(byePlacements.map((mode) => mode.id))
 

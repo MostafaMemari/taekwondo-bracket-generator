@@ -1,5 +1,5 @@
 import type { TournamentRules } from '../../config/tournamentRules.ts'
-import type { DrawTypeId } from '../../lib/drawModes.ts'
+import type { ByeMajorityId, DrawTypeId } from '../../lib/drawModes.ts'
 import type {
   BracketStructure,
   BracketStructureNode,
@@ -21,6 +21,8 @@ export interface GenerateDrawOptions {
   drawType?: DrawTypeId
   /** جایگاه استراحت ها — پیش فرض آینه ای دو طرف (رفتار همیشگی) */
   byePlacement?: 'mirror' | 'belowName'
+  /** اکثریت استراحت ها — فقط در چیدمان «همیشه زیر اسم»؛ پیش فرض راست */
+  byeMajority?: ByeMajorityId
 }
 
 export function generateGroupDraw(
@@ -33,7 +35,10 @@ export function generateGroupDraw(
     .map((id) => participantsById[id])
     .sort((a, b) => a.sourceRow - b.sourceRow)
 
-  const built = buildBracketTree(participants.length, { byePlacement: options.byePlacement })
+  const built = buildBracketTree(participants.length, {
+    byePlacement: options.byePlacement,
+    byeMajority: options.byeMajority,
+  })
   const structure: BracketStructure = options.bronze ? attachBronzeMatch(built) : built
 
   // Walkover winners' slots: the athletes who skip round 1. Byes go to the

@@ -299,6 +299,49 @@ for (const [n, expected] of Object.entries(cornerRestExpectations)) {
   check(`N=${n} belowName: every rest sits under a name`, round1PairRuleHolds(structure))
 }
 
+// ————— ت۳۶ — اکثریت قابل تنظیم استراحت ها (راست پیش فرض / چپ) —————
+// با اکثریت چپ، استراحت پنجم به بعد از بالای نیمه چپ پر می شود —
+// ۱۱ نفر در برگه ۱۶: پنجمی خانه دوم چپ (۴) می نشیند → ۳ چپ و ۲ راست
+const leftMajorityExpectations: Record<number, { rests: string; left: number }> = {
+  9: { rests: 'slot-2,slot-4,slot-6,slot-8,slot-10,slot-12,slot-16', left: 4 },
+  10: { rests: 'slot-2,slot-4,slot-8,slot-10,slot-12,slot-16', left: 3 },
+  11: { rests: 'slot-2,slot-4,slot-8,slot-10,slot-16', left: 3 },
+  12: { rests: 'slot-2,slot-8,slot-10,slot-16', left: 2 },
+  13: { rests: 'slot-2,slot-8,slot-10', left: 2 },
+  15: { rests: 'slot-2', left: 1 },
+}
+for (const [n, expected] of Object.entries(leftMajorityExpectations)) {
+  const structure = buildBracketTree(Number(n), { byePlacement: 'belowName', byeMajority: 'left' })
+  check(
+    `N=${n} belowName+left majority: rests ${expected.rests} (${expected.left} left wing)`,
+    structure.restSlotIds.join(',') === expected.rests &&
+      structure.restSlotIds.filter((id) => Number(id.replace('slot-', '')) <= structure.bracketSize / 2)
+        .length === expected.left,
+  )
+  check(`N=${n} belowName+left majority: every rest sits under a name`, round1PairRuleHolds(structure))
+}
+
+// الگوی ۵ استراحت عکس کاربر دقیقا قرینه می شود: اکثریت راست ۲چپ/۳راست ↔ چپ ۳چپ/۲راست
+{
+  const rightFive = buildBracketTree(11, { byePlacement: 'belowName', byeMajority: 'right' })
+  const leftFive = buildBracketTree(11, { byePlacement: 'belowName', byeMajority: 'left' })
+  check(
+    'N=11: left majority mirrors the right-majority 5-bye pattern',
+    rightFive.restSlotIds.join(',') === 'slot-2,slot-8,slot-10,slot-12,slot-16' &&
+      leftFive.restSlotIds.join(',') === 'slot-2,slot-4,slot-8,slot-10,slot-16',
+  )
+}
+
+// برگه ۸ نفره (۴ مسابقه دور یک) خانه اضافی ندارد — اکثریت هیچ تاثیری ندارد
+for (const n of [5, 6, 7]) {
+  const neutralRight = buildBracketTree(n, { byePlacement: 'belowName', byeMajority: 'right' })
+  const neutralLeft = buildBracketTree(n, { byePlacement: 'belowName', byeMajority: 'left' })
+  check(
+    `N=${n} belowName: majority side does not matter on the 8-slot sheet`,
+    neutralRight.restSlotIds.join(',') === neutralLeft.restSlotIds.join(','),
+  )
+}
+
 // default build stays identical to the explicit mirror mode (back-compat)
 for (const n of [3, 5, 6, 7, 9, 11]) {
   const implicit = buildBracketTree(n)
@@ -352,6 +395,15 @@ for (const n of [5, 7, 9]) {
       modes.normalizeByePlacementId('mirror') === 'mirror' &&
       modes.normalizeByePlacementId('junk') === 'mirror' &&
       modes.normalizeByePlacementId(42) === 'mirror',
+  )
+  check('bye majority sides: two options, right first and default',
+    modes.byeMajoritySides.length === 2 &&
+      modes.byeMajoritySides[0]!.id === 'right' &&
+      modes.byeMajoritySides[1]!.id === 'left' &&
+      modes.normalizeByeMajorityId('left') === 'left' &&
+      modes.normalizeByeMajorityId('right') === 'right' &&
+      modes.normalizeByeMajorityId('junk') === 'right' &&
+      modes.normalizeByeMajorityId(undefined) === 'right',
   )
 }
 

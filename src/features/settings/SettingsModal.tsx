@@ -31,8 +31,10 @@ import {
   type MatchChipStyle,
 } from '../../lib/matchChipStyles.ts'
 import {
+  byeMajoritySides,
   byePlacements,
   drawTypes,
+  type ByeMajorityId,
   type ByePlacementId,
   type DrawTypeId,
 } from '../../lib/drawModes.ts'
@@ -81,11 +83,12 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const sheetLayout = useTournament((state) => state.sheetLayout)
   const drawTypeId = useTournament((state) => state.drawTypeId)
   const byePlacementId = useTournament((state) => state.byePlacementId)
+  const byeMajorityId = useTournament((state) => state.byeMajorityId)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}|${drawTypeId}|${byePlacementId}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}|${drawTypeId}|${byePlacementId}|${byeMajorityId}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
@@ -94,6 +97,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
       initialSheetLayout={sheetLayout}
       initialDrawTypeId={drawTypeId}
       initialByePlacementId={byePlacementId}
+      initialByeMajorityId={byeMajorityId}
       onClose={onClose}
     />
   )
@@ -108,6 +112,7 @@ function SettingsForm({
   initialSheetLayout,
   initialDrawTypeId,
   initialByePlacementId,
+  initialByeMajorityId,
   onClose,
 }: {
   initial: TournamentMeta
@@ -118,6 +123,7 @@ function SettingsForm({
   initialSheetLayout: ReturnType<typeof useTournament.getState>['sheetLayout']
   initialDrawTypeId: ReturnType<typeof useTournament.getState>['drawTypeId']
   initialByePlacementId: ReturnType<typeof useTournament.getState>['byePlacementId']
+  initialByeMajorityId: ReturnType<typeof useTournament.getState>['byeMajorityId']
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
@@ -128,6 +134,7 @@ function SettingsForm({
   const setSheetLayout = useTournament((state) => state.setSheetLayout)
   const setDrawTypeId = useTournament((state) => state.setDrawTypeId)
   const setByePlacementId = useTournament((state) => state.setByePlacementId)
+  const setByeMajorityId = useTournament((state) => state.setByeMajorityId)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
@@ -139,6 +146,7 @@ function SettingsForm({
   const [sheetLayoutId, setLayoutId] = useState<SheetLayoutId>(initialSheetLayout)
   const [drawType, setDrawType] = useState<DrawTypeId>(initialDrawTypeId)
   const [byePlacement, setByePlacement] = useState<ByePlacementId>(initialByePlacementId)
+  const [byeMajority, setByeMajority] = useState<ByeMajorityId>(initialByeMajorityId)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -169,6 +177,7 @@ function SettingsForm({
     setSheetLayout(sheetLayoutId)
     setDrawTypeId(drawType)
     setByePlacementId(byePlacement)
+    setByeMajorityId(byeMajority)
     onClose()
   }
 
@@ -336,12 +345,30 @@ function SettingsForm({
               ))}
             </div>
 
+            <p className="mb-1.5 mt-3 text-xs font-medium text-ink-800">
+              اکثریت استراحت ها
+              <span className="ms-2 text-xs font-normal text-muted">
+                در چیدمان «همیشه زیر اسم» — استراحت های اضافی بعد از چهارگوشه ها به این سمت می روند
+              </span>
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {byeMajoritySides.map((side) => (
+                <ByeMajorityCard
+                  key={side.id}
+                  side={side}
+                  selected={byeMajority === side.id}
+                  onSelect={() => setByeMajority(side.id)}
+                />
+              ))}
+            </div>
+
             <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
               در حالت جداسازی، دو هنرجوی یک مربی اینور و اونور جدول می افتند؛ اگر مربی سه هنرجو داشته
               باشد دو نفرشان در نیمه نهایی به هم می خورند تا برنده به فینال برسد و استراحت ها اول به
-              مربی ای می رسد که بیشترین هنرجو را دارد. در حالت تصادفی فقط فیش ها بُر می خورد. با ذخیره،
-              همه جدول های واقعی و باران مدال از نو قرعه کشی می شوند؛ جدول های دستی و شماره های دستی
-              دست نمی خورند.
+              مربی ای می رسد که بیشترین هنرجو را دارد. در حالت تصادفی فقط فیش ها بُر می خورد. در چیدمان
+              «همیشه زیر اسم» استراحت های اضافی بعد از چهارگوشه ها به سمت اکثریت می روند — پیش فرض
+              راست است و می توانید آن را سمت چپ بگذارید. با ذخیره، همه جدول های واقعی و باران مدال از
+              نو قرعه کشی می شوند؛ جدول های دستی و شماره های دستی دست نمی خورند.
             </p>
           </div>
 
@@ -688,6 +715,52 @@ function ByePlacementCard({
             <MockRow rest />
             <MockRow />
             <MockRow rest />
+            <MockRow />
+            <MockRow />
+            <MockRow rest />
+            <MockRow rest />
+          </>
+        )}
+      </span>
+    </ModeCardShell>
+  )
+}
+
+/**
+ * کارت اکثریت استراحت ها — ماکت همان برگه ۱۶ نفره با ۵ استراحت است: چهارگوشه
+ * ها ثابت اند (بالا و پایین هر دو نیمه) و استراحت پنجم خانه دوم سمت اکثریت را
+ * می گیرد — راست (پیش فرض): ۲ چپ و ۳ راست؛ چپ: ۳ چپ و ۲ راست.
+ */
+function ByeMajorityCard({
+  side,
+  selected,
+  onSelect,
+}: {
+  side: (typeof byeMajoritySides)[number]
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <ModeCardShell selected={selected} onSelect={onSelect} testId={`majority-${side.id}`} name={side.name} hint={side.hint}>
+      <span aria-hidden className="mt-0.5 grid w-10 shrink-0 grid-cols-2 gap-1">
+        {/* جفت های [نیمه چپ، نیمه راست] از بالا: چهارگوشه اول، بعد خانه دوم اکثریت */}
+        {side.id === 'right' ? (
+          <>
+            <MockRow rest />
+            <MockRow rest />
+            <MockRow />
+            <MockRow rest />
+            <MockRow />
+            <MockRow />
+            <MockRow rest />
+            <MockRow rest />
+          </>
+        ) : (
+          <>
+            <MockRow rest />
+            <MockRow rest />
+            <MockRow rest />
+            <MockRow />
             <MockRow />
             <MockRow />
             <MockRow rest />

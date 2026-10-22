@@ -33,16 +33,19 @@ await page.waitForTimeout(400)
 await page.locator('button[aria-label="تنظیمات مسابقات"]').click()
 await page.waitForTimeout(300)
 const drawTypeCards = page.locator('button[data-draw-mode]')
-check('settings: four draw mode cards render', (await drawTypeCards.count()) === 4)
-for (const id of ['coachSeeded', 'random', 'mirror', 'belowName']) {
+check('settings: six draw mode cards render (2 type + 2 placement + 2 majority)', (await drawTypeCards.count()) === 6)
+for (const id of ['coachSeeded', 'random', 'mirror', 'belowName', 'majority-right', 'majority-left']) {
   check(`settings: card «${id}» exists`, (await page.locator(`button[data-draw-mode="${id}"]`).count()) === 1)
 }
 const selectedDefault = await drawTypeCards.evaluateAll((cards) =>
   cards.filter((card) => card.getAttribute('aria-pressed') === 'true').map((card) => card.dataset.drawMode),
 )
 check(
-  'settings: defaults selected = coachSeeded + mirror',
-  selectedDefault.length === 2 && selectedDefault.includes('coachSeeded') && selectedDefault.includes('mirror'),
+  'settings: defaults selected = coachSeeded + mirror + majority-right',
+  selectedDefault.length === 3 &&
+    selectedDefault.includes('coachSeeded') &&
+    selectedDefault.includes('mirror') &&
+    selectedDefault.includes('majority-right'),
   selectedDefault.join(','),
 )
 await page.locator('h2', { hasText: 'تنظیمات سراسری مسابقات' }).waitFor()
