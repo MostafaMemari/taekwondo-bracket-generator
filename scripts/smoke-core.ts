@@ -125,8 +125,9 @@ check('N=5 round 1 has four matches, one contested', roundStats.get(1)?.total ==
 check('N=5 round 2 has two contested semis', roundStats.get(2)?.total === 2 && roundStats.get(2)?.contested === 2)
 check('N=5 round 3 is only the final', roundStats.get(3)?.total === 1 && roundStats.get(3)?.contested === 1)
 
-// user rule: 5 athletes → 3 on the first side (2 fight, the lone one waits
-// below with a bye), 2 on the other side (both wait for the semifinal)
+// user rule: rests concentrate on the FIRST side (۵ استراحت → ۳ چپ، ۲ راست),
+// so for N=5 the athletes split 2 left / 3 right: the left wing holds one
+// walkover pair mirrored around the wing middle, the right wing fights match №1
 function halfParticipants(node: typeof five.root, side: 'left' | 'right'): number {
   const sub = node[side]
   let count = 0
@@ -141,8 +142,8 @@ function halfParticipants(node: typeof five.root, side: 'left' | 'right'): numbe
   walk(sub)
   return count
 }
-check('N=5 first side holds 3 athletes', halfParticipants(five.root, 'left') === 3)
-check('N=5 second side holds 2 athletes', halfParticipants(five.root, 'right') === 2)
+check('N=5 first side holds 2 athletes', halfParticipants(five.root, 'left') === 2)
+check('N=5 second side holds 3 athletes', halfParticipants(five.root, 'right') === 3)
 
 const three = buildBracketTree(3)
 check('N=3 sheet of 4 with one rest slot', three.bracketSize === 4 && three.restSlotIds.length === 1)
@@ -221,15 +222,15 @@ check('final column is centred', Math.abs(finalColumn.x - layout.width / 2) < 0.
 check('final match is the widest-positioned centre box', layout.matches.some(
   (match) => match.matchId === 'match-4' && Math.abs(match.x + match.width / 2 - layout.width / 2) < 0.01,
 ))
-// user rule: numbering and placement start from the LEFT edge — match №1 (the
-// first side's round-1 fight, 2 of the 3 left athletes) sits left of centre,
-// the second side's semifinal sits right of centre
+// user rule: rests concentrate on the LEFT (۳ چپ / ۲ راست) — for N=5 that
+// puts the only contested round-1 pair (match №1) in the RIGHT wing, while
+// the second side's semifinal stays right of centre too
 const firstMatchBox = layout.matches.find((match) => match.matchId === 'match-1')!
-check('match 1 sits on the LEFT half of the sheet', firstMatchBox.x + firstMatchBox.width / 2 < layout.width / 2)
+check('match 1 sits on the RIGHT half of the sheet', firstMatchBox.x + firstMatchBox.width / 2 > layout.width / 2)
 const thirdMatchBox = layout.matches.find((match) => match.matchId === 'match-3')!
 check('match 3 (second side semifinal) sits on the RIGHT half', thirdMatchBox.x + thirdMatchBox.width / 2 > layout.width / 2)
-check('match 1 badge faces the centre from the left wing',
-  Math.abs(firstMatchBox.chipX - (firstMatchBox.x + firstMatchBox.width)) < 0.01,
+check('match 1 badge faces the centre from the right wing',
+  Math.abs(firstMatchBox.chipX - firstMatchBox.x) < 0.01,
 )
 check('match rows stay inside their boxes', layout.matches.every(
   (match) =>

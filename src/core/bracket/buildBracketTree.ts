@@ -14,25 +14,64 @@ interface RawNode {
 }
 
 /**
- * Classic tournament bracket: the sheet is always a power of two (2, 4, 8, 16,
- * 32, 64 …) and every absent slot becomes an explicit first-round bye. The
- * participants are spread with the ceil/floor rule at every level, which puts
- * the byes at the BOTTOM of each section:
- *
- *   N=5 → sheet of 8:  3 athletes on the first side — two of them fight in
- *   round 1 while the lone one waits below, his opponent being «استراحت» —
- *   and 2 athletes on the other side, both entering the semifinal on a bye.
+ * جهت چیدن سرریز ورزشکارها در یک گره:
+ *  - top: سرریز به بچه بالایی می رود → استراحت پایینِ جفت می نشیند
+ *    (اسم بالا، استراحت پایین) — بالای محور آینه نیمه
+ *  - bottom: برعکس — استراحت بالای اسم می نشیند — پایین محور آینه نیمه
+ *  - root: فقط ریشه — ورزشکارها با گرد کردن به پایین تقسیم می شوند تا
+ *    استراحت های اضافی سمت چپ (نیمه اول قرعه) بنشینند:
+ *    ۵ استراحت → ۳ سمت چپ و ۲ سمت راست
  */
-function splitRaw(count: number, capacity: number): RawNode {
+type SplitMode = 'root' | 'top' | 'bottom'
+
+/**
+ * چیدمان اصولی و آینه ای استراحت ها — قانون قرعه کشی:
+ * هر نیمه (بال چپ و بال راست برگه) حول محور افقی خودش آینه می شود؛ بالای
+ * محور استراحت زیر اسم است و پایین محور بالای اسم. `rows` بازه ردیف های گره
+ * داخل نیمه خودش است و جهت از مقایسه با وسط نیمه (wingRows / 2) در می آید.
+ */
+function splitRaw(
+  count: number,
+  capacity: number,
+  mode: SplitMode,
+  rows: { from: number; to: number },
+  wingRows: number,
+): RawNode {
   if (capacity === 1) {
     return { kind: 'leaf', count }
   }
-  const leftCount = Math.min(capacity / 2, Math.ceil(count / 2))
+  const half = capacity / 2
+  const leftCount =
+    mode === 'top'
+      ? Math.min(half, Math.ceil(count / 2))
+      : Math.max(count - half, Math.floor(count / 2))
+  const mid = rows.from + half
   return {
     kind: 'match',
     count,
-    left: splitRaw(leftCount, capacity / 2),
-    right: splitRaw(count - leftCount, capacity / 2),
+    left: splitRaw(leftCount, half, mirrorMode(rows.from, mid, wingRows), { from: rows.from, to: mid }, wingRows),
+    right: splitRaw(count - leftCount, half, mirrorMode(mid, rows.to, wingRows), { from: mid, to: rows.to }, wingRows),
+  }
+}
+
+/** بالای محور نیمه → top، پایینش → bottom؛ گره ای که روی محور می نشیند (خود نیمه) → top */
+function mirrorMode(from: number, to: number, wingRows: number): SplitMode {
+  return to <= wingRows / 2 || from < wingRows / 2 ? 'top' : 'bottom'
+}
+
+/**
+ * دو بال برگه — هر دو با جهت top ساخته می شوند (سرریز ورزشکار به بالای نیمه،
+ * استراحت ها آینه حول وسط همان نیمه) و ریشه آن ها را با قانون «استراحت
+ * اضافی سمت چپ» به هم می دوزد: نیمه اول floor(n/2) ورزشکار می گیرد.
+ */
+function buildWingedTree(participantCount: number, bracketSize: number): RawNode {
+  const wingRows = bracketSize / 2
+  const leftCount = Math.floor(participantCount / 2)
+  return {
+    kind: 'match',
+    count: participantCount,
+    left: splitRaw(leftCount, wingRows, 'top', { from: 0, to: wingRows }, wingRows),
+    right: splitRaw(participantCount - leftCount, wingRows, 'top', { from: 0, to: wingRows }, wingRows),
   }
 }
 
@@ -49,7 +88,7 @@ export function buildBracketTree(participantCount: number): BracketStructure {
 
   const bracketSize = 2 ** Math.ceil(Math.log2(participantCount))
   const totalRounds = Math.round(Math.log2(bracketSize))
-  const root = splitRaw(participantCount, bracketSize)
+  const root = buildWingedTree(participantCount, bracketSize)
 
   const leaves: StructureLeaf[] = []
   const matches: StructureMatch[] = []

@@ -246,8 +246,9 @@ function toPlan(node: BracketStructureNode): PlanNode {
 /**
  * Converging "martial arts" layout: the final sits in the horizontal centre,
  * the FIRST side of the draw — the structure's left wing, the one that gets
- * the extra athlete (e.g. 3 of 5) and match №1 — grows to the LEFT edge and
- * the second side to the RIGHT edge, so the sheet is read from the left:
+ * the extra rests (۳ چپ / ۲ راست) and match №1 whenever the upper-left pair
+ * is contested — grows to the LEFT edge and the second side to the RIGHT
+ * edge, so the sheet is read from the left:
  * round 1 enters from BOTH edges and every later round moves towards the
  * middle — like real taekwondo draw sheets.
  *

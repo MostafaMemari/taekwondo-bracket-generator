@@ -79,10 +79,16 @@ function collectMatchIds(d: GroupDraw): string[] {
 // دور اول دیگر عوضش کن — همان کاری که handleDragEnd با moveParticipant می کند
 const restSlot = draw.structure.restSlotIds[0]
 const restNumber = Number(restSlot.replace('slot-', ''))
-const ownerSlot = `slot-${restNumber - 1}` // همسایه اسلات استراحت در همان مسابقه
+const ownerSlot = `slot-${restNumber - 1}` // همسایه اسلات اولین استراحت — همیشه بالای آن می نشیند
 const ownerOcc = draw.assignments[ownerSlot]
 if (ownerOcc?.kind !== 'participant') throw new Error(`همسایه استراحت (${ownerSlot}) هنرجو نیست`)
-const targetSlot = 'slot-7' // رضا قاسمی — یک مسابقه دور اول دیگر
+// مقصد: یک خانه واقعی دور اول (مسابقه contested) — با چیدمان آینه ای جای
+// جفت contested ثابت نیست، پس پویا پیدا می شود
+const targetLeaf = draw.structure.leaves.find(
+  (leaf) => leaf.entryRound === 1 && draw.assignments[leaf.slotId].kind === 'participant',
+)
+if (!targetLeaf) throw new Error('خانه دور اول پر پیدا نشد')
+const targetSlot = targetLeaf.slotId
 
 const nextAssignments = applySlotSwap(draw.assignments, ownerSlot, targetSlot)
 check('تعویض صاحب استراحت با هنرجوی مقصد انجام شد', nextAssignments !== null)
