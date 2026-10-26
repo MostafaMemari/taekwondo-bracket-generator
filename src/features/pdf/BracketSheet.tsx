@@ -47,6 +47,12 @@ import {
   useMatchNumberField,
 } from "../bracket/matchNumberField.ts";
 import type { SheetLayoutId } from "../../lib/sheetLayouts.ts";
+import {
+  resultsBlockHeight,
+  resultsRankLabels,
+  type ResultsSizeId,
+  type ResultsStyleId,
+} from "../../lib/resultsBlock.ts";
 
 /** A4 landscape at 96 dpi */
 export const sheetWidth = 1120;
@@ -55,28 +61,6 @@ export const pageHeight = 770;
 
 const HEADER_HEIGHT = 104;
 const SHEET_PAD_X = 30;
-
-/**
- * هندسه «جدول نتایج نهایی» — کارت نتایج تا جایی که برگه جا دارد بلندتر می شود
- * تا داوران جای بیشتری برای نوشتن اسم ها با خودکار داشته باشند (درخواست ت۳۹):
- *  - کف = ارتفاع طبیعی امروز (۱۴۱ کلاسیک / ۱۵۸ طرح های باندی) — هیچ برگه ای
- *    تنگ تر از امروز نمی شود و برگه های همین امروز تنگ، بایت به بایت امروز می مانند؛
- *  - سقف = کف + ۴۰ (چهار ردیف × ۱۰ پیکسل) — روی برگه های جادار خط نوشتن تا
- *    دو برابر امروز بالا می رود؛
- *  - نفس پایین = ۸ پیکسل — کارت نتایج به لبه پایین برگه نمی چسبد.
- * مقدارها با سنجش مرورگری ت۳۹ کالیبره شده اند (scripts/t39-measure.mjs).
- */
-const RESULTS_NATURAL_CLASSIC = 141;
-const RESULTS_NATURAL_BAND = 158;
-const RESULTS_CAP_EXTRA = 40;
-const RESULTS_BREATH = 8;
-
-function resultsCardHeight(availableHeight: number, design: SheetLayoutId): number {
-  const natural = design === "classic" ? RESULTS_NATURAL_CLASSIC : RESULTS_NATURAL_BAND;
-  const roomy = availableHeight - RESULTS_BREATH;
-  if (roomy <= natural) return natural; // برگه تنگ — دقیقا هندسه امروز
-  return Math.min(Math.max(roomy, natural + 2), natural + RESULTS_CAP_EXTRA);
-}
 
 interface BracketSheetProps {
   draw: GroupDraw;
@@ -159,10 +143,14 @@ export function BracketSheet({
   const plate = championPlatePalette(championColor, theme);
   // طرح برگه — کلاسیک (ظاهر همیشگی)، مدرن (ریبون و پیل) یا تشریفاتی (قاب سند قهرمانی)
   const sheetLayout = useTournament((state) => state.sheetLayout);
+  // جدول نتایج نهایی — نمایش/مدل/اندازه همه از تنظیمات
+  const showResults = useTournament((state) => state.showResults);
+  const resultsStyleId = useTournament((state) => state.resultsStyleId);
+  const resultsSizeId = useTournament((state) => state.resultsSizeId);
   const modern = sheetLayout === "modern";
   const royal = sheetLayout === "royal";
   const bodyWidth = sheetWidth - SHEET_PAD_X * 2;
-  const withResults = variant === "print" && draw.structure.roundCount > 0;
+  const withResults = variant === "print" && showResults && draw.structure.roundCount > 0;
   // برگه های زمین بندی شده یک ردیف «زمین/ساعت» درشت هم دارند — سربرگ کمی بلندتر؛
   // تشریفاتی یک سطر جداکننده الماسی دار و یک سطر آمار اضافه دارد — کمی بلندتر
   const hasMatBadge = Boolean(matLabel || attendTime);
@@ -1178,6 +1166,8 @@ export function BracketSheet({
       <ResultsTable
         withBronze={Boolean(draw.structure.bronzeMatch)}
         design={sheetLayout}
+        style={resultsStyleId}
+        size={resultsSizeId}
         availableHeight={singleAvailable}
       />
     );
@@ -1308,6 +1298,8 @@ export function BracketSheet({
                 <ResultsTable
                   withBronze={Boolean(draw.structure.bronzeMatch)}
                   design={sheetLayout}
+                  style={resultsStyleId}
+                  size={resultsSizeId}
                   availableHeight={
                     pageHeight -
                     34 -
@@ -1476,41 +1468,87 @@ function RoyalFrame() {
 /**
  * Hand-written final standings at the bottom of the sheet: 1st, 2nd and the
  * two 3rd places of a single-elimination draw — shared 3rds, or 3rd/4th when
- * the medal-rain ranking match exists. One tidy tabular block like the app's
- * other tables: a «رتبه / نام و نام خانوادگی» header row, then a single row
- * per rank with a dotted write-in line. Referees fill the lines with a pen
- * after the matches.
+ * the medal-rain ranking match exists. Three selectable models (settings):
  *
- * کارت تا جایی که برگه جا دارد بلندتر می شود (resultsCardHeight) — ردیف ها با
- * minmax(auto, 1fr) فضای اضافه را مساوی تقسیم می کنند و خط نقطه ای نوشتن به
- * کف خانه می چسبد؛ پس جای دست نوشتن بالا می رود. در برگه های تنگ ارتفاع همان
- * امروز است.
+ *  - «جدولی» (table): the tidy tabular block like the app's other tables —
+ *    a «رتبه / نام و نام خانوادگی» header row, then one row per rank with a
+ *    dotted write-in line (the model used since t38);
+ *  - «کارت مدال» (cards): four equal cards in a 2×2 grid, each with a rank
+ *    badge on top and a dotted write-in line at its bottom — podium mood;
+ *  - «خطی» (lines): the lightest model — four «rank + long dotted line» rows
+ *    with no inner grid.
+ *
+ * همه مدل ها رنگ هایشان را از تم جدول می گیرند و ارتفاع شان از تنظیمات
+ * «اندازه» (resultsBlockHeight) — کوچک/معمولی/درشت/خودکار.
  */
 function ResultsTable({
   withBronze,
   availableHeight,
   design = "classic",
+  style = "table",
+  size = "medium",
 }: {
   withBronze: boolean;
   availableHeight: number;
   design?: SheetLayoutId;
+  style?: ResultsStyleId;
+  size?: ResultsSizeId;
 }) {
   // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن؛
   // حالت عادی: سومِ اولی «سوم» و دومی «سوم (مشترک)» — درخواست چاپ کاربر
-  const ranks = withBronze
-    ? ["اول", "دوم", "سوم", "چهارم"]
-    : ["اول", "دوم", "سوم", "سوم (مشترک)"];
+  const ranks = resultsRankLabels(withBronze);
   const theme = useTableTheme();
   const modern = design === "modern";
   const royal = design === "royal";
   const band = modern || royal;
+  const height = resultsBlockHeight(size, availableHeight, design);
+  // سربرگ مشترک سه مدل — عنوان + راهنمای کوتاه، مثل همه مدل های قبلی
+  const header = (
+    <div
+      dir="rtl"
+      style={{
+        display: "flex",
+        flexShrink: 0,
+        alignItems: band ? "center" : "baseline",
+        justifyContent: band ? "center" : "space-between",
+        flexDirection: band ? "column" : undefined,
+        gap: band ? 1 : 10,
+        backgroundColor: modern ? theme.matBadgeBg : theme.resultsHeaderBg,
+        color: modern ? theme.matBadgeText : theme.resultsHeaderText,
+        padding: band ? "5px 12px 7px" : "4px 12px",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 11.5,
+          fontWeight: 700,
+          whiteSpace: "nowrap",
+          letterSpacing: royal ? 2 : modern ? 1.5 : undefined,
+        }}
+      >
+        نتایج نهایی
+      </span>
+      <span
+        style={{
+          fontSize: 8.5,
+          color: modern ? theme.matBadgeText : theme.resultsHeaderSub,
+          opacity: modern ? 0.85 : undefined,
+        }}
+      >
+        نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
+      </span>
+    </div>
+  );
+  // کادر بیرونی مشترک — هر سه مدل داخل همین کارت می نشینند
   return (
     <div
+      data-results-style={style}
+      data-results-size={size}
       style={{
         width: "100%",
         maxWidth: 420,
         flexShrink: 0,
-        height: resultsCardHeight(availableHeight, design),
+        height,
         display: "flex",
         flexDirection: "column",
         border: `1.5px solid ${theme.resultsBorder}`,
@@ -1524,127 +1562,241 @@ function ResultsTable({
             : undefined,
       }}
     >
+      {header}
+      {style === "table" && (
+        <ResultsTableGrid ranks={ranks} design={design} theme={theme} />
+      )}
+      {style === "cards" && <ResultsCards ranks={ranks} theme={theme} />}
+      {style === "lines" && <ResultsLines ranks={ranks} theme={theme} />}
+    </div>
+  );
+}
+
+/** جدولی — همان گرید سرستون دار ت۳۸/ت۳۹: رتبه / نام و نام خانوادگی + چهار ردیف */
+function ResultsTableGrid({
+  ranks,
+  design,
+  theme,
+}: {
+  ranks: readonly string[];
+  design: SheetLayoutId;
+  theme: ReturnType<typeof useTableTheme>;
+}) {
+  const modern = design === "modern";
+  const royal = design === "royal";
+  return (
+    <div
+      dir="rtl"
+      style={{
+        position: "relative",
+        display: "grid",
+        gridTemplateColumns: "96px 1fr",
+        gridTemplateRows: "auto repeat(4, minmax(auto, 1fr))",
+        flex: 1,
+        minHeight: 0,
+        backgroundColor: theme.resultsCellBg,
+      }}
+    >
+      {/* دورخط داخلی خانه های نتایج — امضای دوخطه طرح تشریفاتی */}
+      {royal && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute"
+          style={{ inset: 2.5, border: `1px solid ${theme.resultsInnerBorder}`, borderRadius: 4 }}
+        />
+      )}
+      {/* سرستون های جدول — همان حالت جدولی بقیه جدول های برنامه */}
       <div
-        dir="rtl"
         style={{
-          display: "flex",
-          flexShrink: 0,
-          alignItems: band ? "center" : "baseline",
-          justifyContent: band ? "center" : "space-between",
-          flexDirection: band ? "column" : undefined,
-          gap: band ? 1 : 10,
-          backgroundColor: modern ? theme.matBadgeBg : theme.resultsHeaderBg,
-          color: modern ? theme.matBadgeText : theme.resultsHeaderText,
-          padding: band ? "5px 12px 7px" : "4px 12px",
+          padding: "3px 8px",
+          textAlign: "center",
+          fontSize: 9.5,
+          fontWeight: 700,
+          color: theme.resultsRankText,
+          letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
+          borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
+          borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
         }}
       >
-        <span
-          style={{
-            fontSize: 11.5,
-            fontWeight: 700,
-            whiteSpace: "nowrap",
-            letterSpacing: royal ? 2 : modern ? 1.5 : undefined,
-          }}
-        >
-          نتایج نهایی
-        </span>
-        <span
-          style={{
-            fontSize: 8.5,
-            color: modern ? theme.matBadgeText : theme.resultsHeaderSub,
-            opacity: modern ? 0.85 : undefined,
-          }}
-        >
-          نام و نام خانوادگی ورزشکار را پس از هر مسابقه بنویسید
-        </span>
+        رتبه
       </div>
       <div
-        dir="rtl"
         style={{
-          position: "relative",
-          display: "grid",
-          gridTemplateColumns: "96px 1fr",
-          gridTemplateRows: "auto repeat(4, minmax(auto, 1fr))",
-          flex: 1,
-          minHeight: 0,
-          backgroundColor: theme.resultsCellBg,
+          padding: "3px 12px",
+          textAlign: "center",
+          fontSize: 9.5,
+          fontWeight: 700,
+          color: theme.resultsRankText,
+          letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
+          borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
         }}
       >
-        {/* دورخط داخلی خانه های نتایج — امضای دوخطه طرح تشریفاتی */}
-        {royal && (
+        نام و نام خانوادگی
+      </div>
+      {ranks.map((rank, index) => (
+        <Fragment key={`${rank}-${index}`}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "3px 8px 4px",
+              fontSize: 10,
+              fontWeight: 700,
+              color: theme.resultsRankText,
+              whiteSpace: "nowrap",
+              borderTop: `1px solid ${theme.resultsInnerBorder}`,
+              borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
+            }}
+          >
+            {rank}
+          </div>
+          <div
+            style={{
+              padding: "3px 12px 4px",
+              borderTop: `1px solid ${theme.resultsInnerBorder}`,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* خط نوشتن به کف خانه می چسبد — فضای بالای خط جای دست نوشتن است */}
+            <div
+              aria-hidden
+              style={{
+                marginTop: "auto",
+                height: 12,
+                borderBottom: `1.5px dotted ${theme.resultsDotted}`,
+              }}
+            />
+          </div>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
+/** کارت مدال — چهار کارت هم اندازه ۲×۲ با بج رتبه و خط نقطه ای نوشتن */
+function ResultsCards({
+  ranks,
+  theme,
+}: {
+  ranks: readonly string[];
+  theme: ReturnType<typeof useTableTheme>;
+}) {
+  return (
+    <div
+      dir="rtl"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gridTemplateRows: "1fr 1fr",
+        gap: 6,
+        padding: 7,
+      }}
+    >
+      {ranks.map((rank, index) => (
+        <div
+          key={`${rank}-${index}`}
+          data-results-card={index}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            border: `1px solid ${theme.resultsInnerBorder}`,
+            borderRadius: 6,
+            padding: "4px 8px 5px",
+            minHeight: 0,
+          }}
+        >
+          {/* بج رتبه — رنگ تم، متن خودکار روشن/تیره؛ جای مدال روی سکو */}
+          <span
+            style={{
+              flexShrink: 0,
+              fontSize: 9,
+              fontWeight: 700,
+              lineHeight: 1,
+              padding: "3px 10px 4px",
+              borderRadius: 999,
+              backgroundColor: theme.matBadgeBg,
+              color: theme.matBadgeText,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {rank}
+          </span>
+          {/* خط نوشتن به کف کارت می چسبد — فضای بالای آن جای اسم دست نویس */}
+          <div
+            aria-hidden
+            style={{
+              marginTop: "auto",
+              width: "100%",
+              height: 12,
+              borderBottom: `1.5px dotted ${theme.resultsDotted}`,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** خطی — چهار سطر «رتبه + خط نقطه ای بلند» بدون کادر داخلی؛ کم جاترین مدل */
+function ResultsLines({
+  ranks,
+  theme,
+}: {
+  ranks: readonly string[];
+  theme: ReturnType<typeof useTableTheme>;
+}) {
+  return (
+    <div
+      dir="rtl"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "grid",
+        gridTemplateRows: "repeat(4, 1fr)",
+        padding: "4px 12px 7px",
+      }}
+    >
+      {ranks.map((rank, index) => (
+        <div
+          key={`${rank}-${index}`}
+          data-results-line={index}
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 10,
+            minHeight: 0,
+          }}
+        >
+          <span
+            style={{
+              flexShrink: 0,
+              width: 78,
+              fontSize: 10,
+              fontWeight: 700,
+              color: theme.resultsRankText,
+              whiteSpace: "nowrap",
+              lineHeight: 1.2,
+            }}
+          >
+            {rank}
+          </span>
+          {/* خط نوشتن همیشه روی کف سطر — هر چقدر مدل بلندتر شود جای دست نوشتن بیشتر می شود */}
           <span
             aria-hidden
-            className="pointer-events-none absolute"
-            style={{ inset: 2.5, border: `1px solid ${theme.resultsInnerBorder}`, borderRadius: 4 }}
+            style={{
+              flex: 1,
+              height: 12,
+              marginBottom: 1,
+              borderBottom: `1.5px dotted ${theme.resultsDotted}`,
+            }}
           />
-        )}
-        {/* سرستون های جدول — همان حالت جدولی بقیه جدول های برنامه */}
-        <div
-          style={{
-            padding: "3px 8px",
-            textAlign: "center",
-            fontSize: 9.5,
-            fontWeight: 700,
-            color: theme.resultsRankText,
-            letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
-            borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
-            borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
-          }}
-        >
-          رتبه
         </div>
-        <div
-          style={{
-            padding: "3px 12px",
-            textAlign: "center",
-            fontSize: 9.5,
-            fontWeight: 700,
-            color: theme.resultsRankText,
-            letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
-            borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
-          }}
-        >
-          نام و نام خانوادگی
-        </div>
-        {ranks.map((rank, index) => (
-          <Fragment key={`${rank}-${index}`}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "3px 8px 4px",
-                fontSize: 10,
-                fontWeight: 700,
-                color: theme.resultsRankText,
-                whiteSpace: "nowrap",
-                borderTop: `1px solid ${theme.resultsInnerBorder}`,
-                borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
-              }}
-            >
-              {rank}
-            </div>
-            <div
-              style={{
-                padding: "3px 12px 4px",
-                borderTop: `1px solid ${theme.resultsInnerBorder}`,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              {/* خط نوشتن به کف خانه می چسبد — فضای بالای خط جای دست نوشتن است */}
-              <div
-                aria-hidden
-                style={{
-                  marginTop: "auto",
-                  height: 12,
-                  borderBottom: `1.5px dotted ${theme.resultsDotted}`,
-                }}
-              />
-            </div>
-          </Fragment>
-        ))}
-      </div>
+      ))}
     </div>
   );
 }

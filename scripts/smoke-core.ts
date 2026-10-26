@@ -1396,6 +1396,118 @@ check('sheet layout: store migration v17 defaults old saves to classic and keeps
   })(),
 )
 
+// ————— تسک ۴۰ — «جدول نتایج نهایی» قابل تنظیم: مدل، اندازه، نمایش —————
+
+{
+  const results = await import('../src/lib/resultsBlock.ts')
+
+  check('results: three models with tabular first, normalize rejects junk',
+    results.resultsStyles.length === 3 &&
+      results.resultsStyles[0].id === 'table' &&
+      results.normalizeResultsStyleId('cards') === 'cards' &&
+      results.normalizeResultsStyleId('lines') === 'lines' &&
+      results.normalizeResultsStyleId('junk') === 'table' &&
+      results.normalizeResultsStyleId(undefined) === 'table',
+  )
+
+  check('results: four sizes with medium default, normalize rejects junk',
+    results.resultsSizes.map((size) => size.id).join(',') === 'compact,medium,large,auto' &&
+      results.normalizeResultsSizeId('compact') === 'compact' &&
+      results.normalizeResultsSizeId('auto') === 'auto' &&
+      results.normalizeResultsSizeId('huge') === 'medium' &&
+      results.normalizeResultsSizeId(7) === 'medium',
+  )
+
+  check('results: rank labels — normal shared thirds vs medal-rain 1..4',
+    results.resultsRankLabels(false).join('|') === 'اول|دوم|سوم|سوم (مشترک)' &&
+      results.resultsRankLabels(true).join('|') === 'اول|دوم|سوم|چهارم',
+  )
+
+  check('results: medium height is the fixed natural 141/158 everywhere',
+    results.resultsBlockHeight('medium', 9999, 'classic') === 141 &&
+      results.resultsBlockHeight('medium', 9999, 'modern') === 158 &&
+      results.resultsBlockHeight('medium', 9999, 'royal') === 158 &&
+      results.resultsBlockHeight('medium', 100, 'classic') === 141,
+  )
+
+  check('results: compact is fixed small and never exceeds the free room (floor 96)',
+    results.resultsBlockHeight('compact', 9999, 'classic') === 112 &&
+      results.resultsBlockHeight('compact', 9999, 'modern') === 128 &&
+      results.resultsBlockHeight('compact', 110, 'classic') === 102 &&
+      results.resultsBlockHeight('compact', 90, 'classic') === 96,
+  )
+
+  check('results: large grows +22 with room, falls back to natural when tight',
+    results.resultsBlockHeight('large', 9999, 'classic') === 163 &&
+      results.resultsBlockHeight('large', 9999, 'royal') === 180 &&
+      results.resultsBlockHeight('large', 170, 'classic') === 141 &&
+      results.resultsBlockHeight('large', 171, 'classic') === 163,
+  )
+
+  check('results: auto keeps the t39 behavior — tight natural, roomy capped at +40',
+    results.resultsBlockHeight('auto', 100, 'classic') === 141 &&
+      results.resultsBlockHeight('auto', 162, 'classic') === 154 &&
+      results.resultsBlockHeight('auto', 9999, 'classic') === 181 &&
+      results.resultsBlockHeight('auto', 9999, 'royal') === 198 &&
+      results.resultsBlockHeight('auto', 170, 'modern') === 162,
+  )
+
+  check('results: roomy sheet orders compact < medium < large <= auto',
+    results.resultsBlockHeight('compact', 9999, 'classic') <
+      results.resultsBlockHeight('medium', 9999, 'classic') &&
+      results.resultsBlockHeight('medium', 9999, 'classic') <
+        results.resultsBlockHeight('large', 9999, 'classic') &&
+      results.resultsBlockHeight('large', 9999, 'classic') <=
+        results.resultsBlockHeight('auto', 9999, 'classic'),
+  )
+
+  check('results: store migration v21 defaults old saves and keeps saved choices',
+    await (async () => {
+      if (typeof globalThis.localStorage === 'undefined') {
+        const memory = new Map<string, string>()
+        const memoryStorage = {
+          getItem: (key: string) => memory.get(key) ?? null,
+          setItem: (key: string, value: string) => void memory.set(key, value),
+          removeItem: (key: string) => void memory.delete(key),
+        }
+        Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+        ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+      }
+      const { useTournament } = await import('../src/store/tournamentStore.ts')
+      const migrate = (
+        useTournament as unknown as {
+          persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+        }
+      ).persist?.getOptions?.()?.migrate
+      if (typeof migrate !== 'function') return false
+      const kept = migrate({
+        showResults: false,
+        resultsStyleId: 'cards',
+        resultsSizeId: 'large',
+      }) as { showResults?: boolean; resultsStyleId?: string; resultsSizeId?: string }
+      const junk = migrate({
+        showResults: 'nope',
+        resultsStyleId: 5,
+        resultsSizeId: 'huge',
+      }) as { showResults?: boolean; resultsStyleId?: string; resultsSizeId?: string }
+      const empty = migrate({}) as {
+        showResults?: boolean
+        resultsStyleId?: string
+        resultsSizeId?: string
+      }
+      return kept.showResults === false &&
+        kept.resultsStyleId === 'cards' &&
+        kept.resultsSizeId === 'large' &&
+        junk.showResults === true &&
+        junk.resultsStyleId === 'table' &&
+        junk.resultsSizeId === 'medium' &&
+        empty.showResults === true &&
+        empty.resultsStyleId === 'table' &&
+        empty.resultsSizeId === 'medium'
+    })(),
+  )
+}
+
 if (failures > 0) {
   console.error(`${failures} failure(s)`)
   process.exit(1)

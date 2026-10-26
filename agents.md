@@ -142,6 +142,21 @@
   مدال (createMedalRainTables) همیشه coachSeeded می فرستد تا سواپ های پیش
   نمایش به هم نریزد. SlotCard و MatchBox برای تست مرورگر
   data-slot-id/data-rest/data-match-id می دهند.
+- **جدول نتایج نهایی قابل تنظیم (v21) — نمایش/مدل/اندازه از تنظیمات:**
+  `showResults` و `resultsStyleId` و `resultsSizeId` در store از
+  `src/lib/resultsBlock.ts` می آیند (نسخه persist ۲۱؛ ذخیره های قدیمی روشن با
+  مدل جدولی و اندازه «معمولی» شروع می کنند — یعنی ارتفاع همیشگی، نه حالت
+  خودکارِ بلند ت۳۹). کلید `showResults` بلوک نتایج را از برگه چاپ و PDF حذف
+  می کند (خروجی عکس از اول بدون جدول بوده است). سه مدل: `table` «جدولی»
+  (سرستون رتبه/نام + چهار ردیف خط نقطه ای — همان ت۳۸)، `cards` «کارت مدال»
+  (چهار کارت هم اندازه ۲×۲ با بج رتبه رنگ تم و خط نوشتن کف کارت) و `lines`
+  «خطی» (چهار سطر رتبه + خط نقطه ای بلند). چهار اندازه: `compact` ثابت
+  ۱۱۲/۱۲۸، `medium` ثابت ۱۴۱/۱۵۸ (پیش فرض — پاسخ به «خیلی بزرگ شد»)،
+  `large` کف+۲۲ (اگر برگه جا نداشت همان معمولی) و `auto` رفتار ت۳۹ (تا سقف
+  کف+۴۰). هندسه ارتفاع در `resultsBlockHeight` (همان lib — react ندارد) و
+  برچسب رتبه ها در `resultsRankLabels` (سوم/سوم (مشترک) یا ۱..۴ باران مدال)
+  است؛ ResultsTable در BracketSheet هر سه مدل را با data-results-style/
+  data-results-size رندر می کند و رگرسیون t39 با seed «خودکار» پاس می شود.
 - **نام هیچ وقت «…» نمی گیرد:** هر جای برنامه که نام هنرجو/مربی/برچسب دور
   در خانه ای محدود می نشیند از FitText (src/components) استفاده می کنی —
   فونت تا جا شدن کوچک می شود (کف minSize) و truncate ممنوع است.
@@ -244,6 +259,12 @@ src/
 │   │                           (right/left — فقط در چیدمان «همیشه زیر اسم») +
 │   │                           نام و توضیح فارسی هر حالت + normalize —
 │   │                           react ندارد، تست node دارد (ت۳۴/ت۳۶)
+│   ├── resultsBlock.ts      ← «جدول نتایج نهایی» برگه چاپ: سه مدل
+│   │                           (table/cards/lines) + چهار اندازه
+│   │                           (compact/medium/large/auto) + هندسه ارتفاع
+│   │                           resultsBlockHeight و برچسب رتبه ها
+│   │                           resultsRankLabels + normalize — react ندارد،
+│   │                           تست node دارد (ت۴۰)
 │   ├── hooks.ts             ← useParticipantsById + useScheduleModel (یک بار
 │   │                           buildSchedule برای built + سه نقشه شماره)
 │   ├── drawStats.ts         ← realMatchCount (نفرات منهای ۱) و برچسب option ها
@@ -323,7 +344,11 @@ src/
     └── settings/SettingsModal.tsx ← عنوان/زیرعنوان/لوگو (downscale 320px) + نوع
                                  قرعه کشی و چیدمان استراحت و اکثریت استراحت ها
                                  (شش کارت data-draw-mode)
-                                 + طرح برگه + تم جدول ها + ظاهر شماره مسابقه —
+                                 + طرح برگه + تم جدول ها + ظاهر شماره مسابقه +
+                                 پلاک قهرمان (کلید/متن/رنگ با ماکت زنده) +
+                                 جدول نتایج نهایی (کلید نمایش + سه کارت مدل +
+                                 چهار کارت اندازه با ماکت ResultsMock،
+                                 data-results-settings) —
                                  همه با «ذخیره» اعمال و با «انصراف» برمی گردد
 ```
 

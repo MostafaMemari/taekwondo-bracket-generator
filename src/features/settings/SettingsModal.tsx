@@ -39,6 +39,12 @@ import {
   type DrawTypeId,
 } from '../../lib/drawModes.ts'
 import { DEFAULT_CHAMPION_LABEL, championPlatePalette } from '../../lib/championPlate.ts'
+import {
+  resultsSizes,
+  resultsStyles,
+  type ResultsSizeId,
+  type ResultsStyleId,
+} from '../../lib/resultsBlock.ts'
 
 interface SettingsModalProps {
   open: boolean
@@ -87,11 +93,14 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const drawTypeId = useTournament((state) => state.drawTypeId)
   const byePlacementId = useTournament((state) => state.byePlacementId)
   const byeMajorityId = useTournament((state) => state.byeMajorityId)
+  const showResults = useTournament((state) => state.showResults)
+  const resultsStyleId = useTournament((state) => state.resultsStyleId)
+  const resultsSizeId = useTournament((state) => state.resultsSizeId)
   if (!open) return null
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${championColor ?? ''}|${championLabel}|${sheetLayout}|${drawTypeId}|${byePlacementId}|${byeMajorityId}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${championColor ?? ''}|${championLabel}|${sheetLayout}|${drawTypeId}|${byePlacementId}|${byeMajorityId}|${showResults}|${resultsStyleId}|${resultsSizeId}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
@@ -103,6 +112,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
       initialDrawTypeId={drawTypeId}
       initialByePlacementId={byePlacementId}
       initialByeMajorityId={byeMajorityId}
+      initialShowResults={showResults}
+      initialResultsStyleId={resultsStyleId}
+      initialResultsSizeId={resultsSizeId}
       onClose={onClose}
     />
   )
@@ -120,6 +132,9 @@ function SettingsForm({
   initialDrawTypeId,
   initialByePlacementId,
   initialByeMajorityId,
+  initialShowResults,
+  initialResultsStyleId,
+  initialResultsSizeId,
   onClose,
 }: {
   initial: TournamentMeta
@@ -133,6 +148,9 @@ function SettingsForm({
   initialDrawTypeId: ReturnType<typeof useTournament.getState>['drawTypeId']
   initialByePlacementId: ReturnType<typeof useTournament.getState>['byePlacementId']
   initialByeMajorityId: ReturnType<typeof useTournament.getState>['byeMajorityId']
+  initialShowResults: boolean
+  initialResultsStyleId: ReturnType<typeof useTournament.getState>['resultsStyleId']
+  initialResultsSizeId: ReturnType<typeof useTournament.getState>['resultsSizeId']
   onClose: () => void
 }) {
   const updateMeta = useTournament((state) => state.updateMeta)
@@ -146,6 +164,9 @@ function SettingsForm({
   const setDrawTypeId = useTournament((state) => state.setDrawTypeId)
   const setByePlacementId = useTournament((state) => state.setByePlacementId)
   const setByeMajorityId = useTournament((state) => state.setByeMajorityId)
+  const setShowResults = useTournament((state) => state.setShowResults)
+  const setResultsStyleId = useTournament((state) => state.setResultsStyleId)
+  const setResultsSizeId = useTournament((state) => state.setResultsSizeId)
   const [title, setTitle] = useState(initial.title)
   const [subtitle, setSubtitle] = useState(initial.subtitle)
   const [sheetTitleFormat, setSheetTitleFormat] = useState(initial.sheetTitleFormat)
@@ -160,6 +181,9 @@ function SettingsForm({
   const [drawType, setDrawType] = useState<DrawTypeId>(initialDrawTypeId)
   const [byePlacement, setByePlacement] = useState<ByePlacementId>(initialByePlacementId)
   const [byeMajority, setByeMajority] = useState<ByeMajorityId>(initialByeMajorityId)
+  const [resultsVisible, setResultsVisible] = useState(initialShowResults)
+  const [resultsStyle, setResultsStyle] = useState<ResultsStyleId>(initialResultsStyleId)
+  const [resultsSize, setResultsSize] = useState<ResultsSizeId>(initialResultsSizeId)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   // ماکت پلاک قهرمان — با تم انتخابی همین لحظه و رنگ دلخواه زنده رنگ می گیرد
@@ -195,6 +219,9 @@ function SettingsForm({
     setDrawTypeId(drawType)
     setByePlacementId(byePlacement)
     setByeMajorityId(byeMajority)
+    setShowResults(resultsVisible)
+    setResultsStyleId(resultsStyle)
+    setResultsSizeId(resultsSize)
     onClose()
   }
 
@@ -692,6 +719,99 @@ function SettingsForm({
                   onClick={() => {
                     setPlateColor(null)
                     setPlateLabel(DEFAULT_CHAMPION_LABEL)
+                  }}
+                  className="ms-1 font-medium text-mat-700 underline decoration-dotted underline-offset-4 hover:text-mat-600"
+                >
+                  بازگشت به پیش فرض
+                </button>
+              </p>
+            </div>
+          </div>
+
+          <div data-results-settings>
+            <label className="mb-1.5 block text-sm font-medium text-ink-800">
+              جدول نتایج نهایی
+              <span className="mt-0.5 block text-xs font-normal text-muted">
+                برگه چاپ و PDF — داوران نام برگزیدگان را با دست می نویسند
+              </span>
+            </label>
+
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-line bg-white px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div>
+                  <p className="text-sm font-medium text-ink-900">جدول نتایج زیر برگه</p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted">
+                    با خاموش کردن، جدول نتایج روی برگه چاپ و PDF نمی آید — خروجی عکس از اول بدون جدول
+                    بوده است
+                  </p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className={`text-xs font-medium ${resultsVisible ? 'text-mat-700' : 'text-muted'}`}>
+                  {resultsVisible ? 'روشن' : 'خاموش'}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={resultsVisible}
+                  aria-label="نمایش جدول نتایج نهایی"
+                  onClick={() => setResultsVisible((value) => !value)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                    resultsVisible ? 'bg-mat-600' : 'bg-line-strong'
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${
+                      resultsVisible ? 'start-0.5' : 'start-[22px]'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className={`mt-3 space-y-3 ${resultsVisible ? '' : 'opacity-60'}`}>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-ink-800">مدل نتایج</p>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {resultsStyles.map((option) => (
+                    <ResultsStyleCard
+                      key={option.id}
+                      option={option}
+                      theme={tableThemeById(tableThemeId)}
+                      selected={resultsStyle === option.id}
+                      onSelect={() => setResultsStyle(option.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-ink-800">اندازه</p>
+                <div className="grid grid-cols-4 gap-2.5">
+                  {resultsSizes.map((option) => (
+                    <ResultsSizeCard
+                      key={option.id}
+                      option={option}
+                      style={resultsStyle}
+                      theme={tableThemeById(tableThemeId)}
+                      selected={resultsSize === option.id}
+                      onSelect={() => setResultsSize(option.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <p className="rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+                «معمولی» همان ارتفاع همیشگی جدول نتایج است؛ «خودکار» تا جایی که برگه جا دارد بلند می
+                شود و روی برگه های شلوغ خودش برمی گردد به معمولی. ماکت اندازه با مدل انتخابی همین
+                لحظه شکل می گیرد و همه رنگ ها از تم جدول می آید.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResultsVisible(true)
+                    setResultsStyle('table')
+                    setResultsSize('medium')
                   }}
                   className="ms-1 font-medium text-mat-700 underline decoration-dotted underline-offset-4 hover:text-mat-600"
                 >
@@ -1240,6 +1360,168 @@ function SheetLayoutCard({
         {selected && <Check size={13} className="shrink-0 text-mat-600" />}
       </div>
       <p className="mt-0.5 text-[10px] leading-4 text-muted">{layout.hint}</p>
+    </button>
+  )
+}
+
+/**
+ * ماکت کوچک بلوک نتایج — همان سه مدل با رنگ های تم: جدولی (سربرگ + سطرهای
+ * خط نقطه ای با کنج رتبه)، کارت مدال (شبکه ۲×۲) و خطی (سطرهای خط بلند)؛
+ * پرچم «grow» ناحیه کشسان حالت خودکار را با کادر نقطه چین نشان می دهد.
+ */
+function ResultsMock({
+  theme,
+  style,
+  height,
+  grow = false,
+}: {
+  theme: TableTheme
+  style: ResultsStyleId
+  height: number
+  grow?: boolean
+}) {
+  return (
+    <span aria-hidden className="flex flex-col" style={{ width: 46 }}>
+      {grow && (
+        <span
+          className="mx-px mb-[3px] rounded-[3px]"
+          style={{ height: 6, border: `1px dashed ${theme.resultsDotted}` }}
+        />
+      )}
+      <span
+        className="flex flex-col overflow-hidden rounded-[3px] bg-white"
+        style={{ height, border: `1px solid ${theme.resultsBorder}` }}
+      >
+        <span
+          className="block shrink-0"
+          style={{ height: 5, backgroundColor: theme.resultsHeaderBg }}
+        />
+        {style === 'cards' ? (
+          <span className="grid flex-1 grid-cols-2 gap-[2px] p-[2px]">
+            {[0, 1, 2, 3].map((index) => (
+              <span
+                key={index}
+                className="rounded-[2px]"
+                style={{ border: `1px solid ${theme.resultsInnerBorder}` }}
+              />
+            ))}
+          </span>
+        ) : style === 'lines' ? (
+          <span className="flex flex-1 flex-col justify-evenly px-[3px]">
+            {[0, 1, 2].map((index) => (
+              <span
+                key={index}
+                style={{ height: 3, borderBottom: `1px dotted ${theme.resultsDotted}` }}
+              />
+            ))}
+          </span>
+        ) : (
+          <span className="flex flex-1 flex-col">
+            {[0, 1, 2].map((index) => (
+              <span key={index} className="flex flex-1 items-end gap-[2px] px-[3px]">
+                <span
+                  className="mb-px rounded-[2px]"
+                  style={{
+                    width: 8,
+                    height: 2,
+                    backgroundColor: theme.resultsRankText,
+                    opacity: 0.55,
+                  }}
+                />
+                <span
+                  style={{ flex: 1, height: 3, borderBottom: `1px dotted ${theme.resultsDotted}` }}
+                />
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * کارت انتخاب مدل نتایج — ماکت با رنگ های تم فعلی؛ انتخاب با «ذخیره» اعمال
+ * می شود و «انصراف» برمی گرداند.
+ */
+function ResultsStyleCard({
+  option,
+  theme,
+  selected,
+  onSelect,
+}: {
+  option: (typeof resultsStyles)[number]
+  theme: TableTheme
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div className="flex h-[46px] items-center justify-center rounded-lg border border-line bg-white px-2">
+        <ResultsMock theme={theme} style={option.id} height={36} />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{option.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+      <p className="mt-0.5 text-[10px] leading-4 text-muted">{option.hint}</p>
+    </button>
+  )
+}
+
+/**
+ * کارت انتخاب اندازه نتایج — ماکت با خود مدل انتخابی و ارتفاع نسبتا واقعی هر
+ * اندازه (کوچک/معمولی/درشت)؛ «خودکار» بخش نقطه چین بالای ماکت دارد تا رشد تا
+ * سقف برگه دیده شود.
+ */
+function ResultsSizeCard({
+  option,
+  style,
+  theme,
+  selected,
+  onSelect,
+}: {
+  option: (typeof resultsSizes)[number]
+  style: ResultsStyleId
+  theme: TableTheme
+  selected: boolean
+  onSelect: () => void
+}) {
+  // ارتفاع نسبتا واقعی ماکت ها — فاصله کوچک/معمولی/درشت مثل خود برگه
+  const mockHeight = option.id === 'compact' ? 26 : option.id === 'medium' ? 34 : 42
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border p-2 text-start transition-colors ${
+        selected
+          ? 'border-mat-600 bg-mat-50 ring-2 ring-mat-600/25'
+          : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <div className="flex h-[56px] items-end justify-center rounded-lg border border-line bg-white px-2 pb-1.5">
+        <ResultsMock
+          theme={theme}
+          style={style}
+          height={mockHeight}
+          grow={option.id === 'auto'}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-1">
+        <span className="text-xs font-bold text-ink-900">{option.name}</span>
+        {selected && <Check size={13} className="shrink-0 text-mat-600" />}
+      </div>
+      <p className="mt-0.5 text-[10px] leading-4 text-muted">{option.hint}</p>
     </button>
   )
 }

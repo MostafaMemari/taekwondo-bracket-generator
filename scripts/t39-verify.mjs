@@ -39,6 +39,9 @@ async function collect(layout) {
     const raw = localStorage.getItem('kyorugi-draw-board-v1')
     const state = JSON.parse(raw)
     state.state.sheetLayout = l
+    // ت۴۰: اندازه نتایج حالا از تنظیمات می آید و پیش فرض «معمولی» است —
+    // این تست رفتار بلند شدن خودکار را می سنجد پس خودکار را صریح ست می کنیم
+    state.state.resultsSizeId = 'auto'
     localStorage.setItem('kyorugi-draw-board-v1', JSON.stringify(state))
   }, layout)
   await page.reload()

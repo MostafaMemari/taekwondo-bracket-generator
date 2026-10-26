@@ -31,6 +31,12 @@ import {
   normalizeChampionColor,
   normalizeChampionLabel,
 } from '../lib/championPlate.ts'
+import {
+  normalizeResultsSizeId,
+  normalizeResultsStyleId,
+  type ResultsSizeId,
+  type ResultsStyleId,
+} from '../lib/resultsBlock.ts'
 import type {
   CategoryGroup,
   GroupDraw,
@@ -341,6 +347,28 @@ interface TournamentState {
    */
   byeMajorityId: ByeMajorityId
   setByeMajorityId: (id: ByeMajorityId) => void
+  /**
+   * نمایش «جدول نتایج نهایی» در برگه چاپ و PDF — کلید فعال/غیرفعال از
+   * تنظیمات؛ خروجی عکس از اول بدون جدول نتایج بوده است. انتخاب شخصی است و با
+   * ورود فهرست جدید عوض نمی شود.
+   */
+  showResults: boolean
+  setShowResults: (value: boolean) => void
+  /**
+   * مدل بلوک نتایج — جدولی (سرستون رتبه/نام با خط نقطه ای) یا کارت مدال
+   * (چهار کارت ۲×۲ با بج رتبه) یا خطی (چهار سطر رتبه + خط بلند). رنگ ها از
+   * تم جدول می آید؛ انتخاب شخصی است و با ورود فهرست جدید عوض نمی شود.
+   */
+  resultsStyleId: ResultsStyleId
+  setResultsStyleId: (id: ResultsStyleId) => void
+  /**
+   * اندازه بلوک نتایج — کوچک (ثابت جمع)، معمولی (همان ارتفاع همیشگی — پیش
+   * فرض)، درشت (۲۲px بلندتر تا جایی که برگه جا دارد) یا خودکار (تا جایی که
+   * برگه جا دارد بلند می شود — رفتار ت۳۹). انتخاب شخصی است و با ورود فهرست
+   * جدید عوض نمی شود.
+   */
+  resultsSizeId: ResultsSizeId
+  setResultsSizeId: (id: ResultsSizeId) => void
 }
 
 const historyLimit = 40
@@ -434,6 +462,14 @@ export const useTournament = create<TournamentState>()(
         set({ byeMajorityId: next })
         get().redrawAllRealGroups()
       },
+      // جدول نتایج نهایی پیش فرض روشن است — مدل جدولی با اندازه معمولی
+      // (همان ارتفاع همیشگی؛ پاسخ به «خیلی بزرگ شد»)
+      showResults: true,
+      setShowResults: (value) => set({ showResults: value }),
+      resultsStyleId: 'table' as ResultsStyleId,
+      setResultsStyleId: (id) => set({ resultsStyleId: normalizeResultsStyleId(id) }),
+      resultsSizeId: 'medium' as ResultsSizeId,
+      setResultsSizeId: (id) => set({ resultsSizeId: normalizeResultsSizeId(id) }),
 
       importRoster: (fileName, roster) =>
         set({
@@ -1198,7 +1234,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 20,
+      version: 21,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -1225,6 +1261,9 @@ export const useTournament = create<TournamentState>()(
         //           ذخیره های قدیمی سمت راست شروع می کنند
         //      v20: رنگ و متن دلخواه پلاک قهرمان — ذخیره های قدیمی طلایی همراه
         //           تم با متن «قهرمان» شروع می کنند
+        //      v21: جدول نتایج نهایی قابل تنظیم شد (نمایش/مدل/اندازه) —
+        //           ذخیره های قدیمی روشن با مدل جدولی و اندازه معمولی شروع
+        //           می کنند — یعنی دقیقا ارتفاع همیشگی، نه حالت خودکارِ بلند
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -1286,6 +1325,9 @@ export const useTournament = create<TournamentState>()(
           drawTypeId,
           byePlacementId,
           byeMajorityId,
+          showResults: state.showResults !== false,
+          resultsStyleId: normalizeResultsStyleId(state.resultsStyleId),
+          resultsSizeId: normalizeResultsSizeId(state.resultsSizeId),
         }
       },
       partialize: (state) => ({
@@ -1313,6 +1355,9 @@ export const useTournament = create<TournamentState>()(
         drawTypeId: state.drawTypeId,
         byePlacementId: state.byePlacementId,
         byeMajorityId: state.byeMajorityId,
+        showResults: state.showResults,
+        resultsStyleId: state.resultsStyleId,
+        resultsSizeId: state.resultsSizeId,
       }),
     },
   ),
