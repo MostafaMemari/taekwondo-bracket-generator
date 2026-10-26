@@ -56,6 +56,28 @@ export const pageHeight = 770;
 const HEADER_HEIGHT = 104;
 const SHEET_PAD_X = 30;
 
+/**
+ * هندسه «جدول نتایج نهایی» — کارت نتایج تا جایی که برگه جا دارد بلندتر می شود
+ * تا داوران جای بیشتری برای نوشتن اسم ها با خودکار داشته باشند (درخواست ت۳۹):
+ *  - کف = ارتفاع طبیعی امروز (۱۴۱ کلاسیک / ۱۵۸ طرح های باندی) — هیچ برگه ای
+ *    تنگ تر از امروز نمی شود و برگه های همین امروز تنگ، بایت به بایت امروز می مانند؛
+ *  - سقف = کف + ۴۰ (چهار ردیف × ۱۰ پیکسل) — روی برگه های جادار خط نوشتن تا
+ *    دو برابر امروز بالا می رود؛
+ *  - نفس پایین = ۸ پیکسل — کارت نتایج به لبه پایین برگه نمی چسبد.
+ * مقدارها با سنجش مرورگری ت۳۹ کالیبره شده اند (scripts/t39-measure.mjs).
+ */
+const RESULTS_NATURAL_CLASSIC = 141;
+const RESULTS_NATURAL_BAND = 158;
+const RESULTS_CAP_EXTRA = 40;
+const RESULTS_BREATH = 8;
+
+function resultsCardHeight(availableHeight: number, design: SheetLayoutId): number {
+  const natural = design === "classic" ? RESULTS_NATURAL_CLASSIC : RESULTS_NATURAL_BAND;
+  const roomy = availableHeight - RESULTS_BREATH;
+  if (roomy <= natural) return natural; // برگه تنگ — دقیقا هندسه امروز
+  return Math.min(Math.max(roomy, natural + 2), natural + RESULTS_CAP_EXTRA);
+}
+
 interface BracketSheetProps {
   draw: GroupDraw;
   participantsById: Map<string, Participant>;
@@ -1142,12 +1164,23 @@ export function BracketSheet({
   }
 
   function renderResults() {
-    return withResults ? (
+    if (!withResults) return null;
+    // فضای نتایج برگه تک صفحه ای = ارتفاع main منهای سربرگ و باند و فاصله ۱۲
+    const singleAvailable =
+      pageHeight -
+      headerHeight -
+      (royal ? 10 : 8) -
+      (royal ? 22 : 0) -
+      (modern ? 6 : 0) -
+      wholeLayout.height -
+      12;
+    return (
       <ResultsTable
         withBronze={Boolean(draw.structure.bronzeMatch)}
         design={sheetLayout}
+        availableHeight={singleAvailable}
       />
-    ) : null;
+    );
   }
 
   // ریبون رنگی لبه بالای برگه مدرن — امضای بصری طرح جدید؛ در کلاسیک هیچ است
@@ -1275,6 +1308,15 @@ export function BracketSheet({
                 <ResultsTable
                   withBronze={Boolean(draw.structure.bronzeMatch)}
                   design={sheetLayout}
+                  availableHeight={
+                    pageHeight -
+                    34 -
+                    (royal ? 10 : 8) -
+                    (royal ? 22 : 14) -
+                    (modern ? 6 : 0) -
+                    layout.height -
+                    12
+                  }
                 />
               )}
             </main>
@@ -1438,12 +1480,19 @@ function RoyalFrame() {
  * other tables: a «رتبه / نام و نام خانوادگی» header row, then a single row
  * per rank with a dotted write-in line. Referees fill the lines with a pen
  * after the matches.
+ *
+ * کارت تا جایی که برگه جا دارد بلندتر می شود (resultsCardHeight) — ردیف ها با
+ * minmax(auto, 1fr) فضای اضافه را مساوی تقسیم می کنند و خط نقطه ای نوشتن به
+ * کف خانه می چسبد؛ پس جای دست نوشتن بالا می رود. در برگه های تنگ ارتفاع همان
+ * امروز است.
  */
 function ResultsTable({
   withBronze,
+  availableHeight,
   design = "classic",
 }: {
   withBronze: boolean;
+  availableHeight: number;
   design?: SheetLayoutId;
 }) {
   // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن؛
@@ -1461,6 +1510,9 @@ function ResultsTable({
         width: "100%",
         maxWidth: 420,
         flexShrink: 0,
+        height: resultsCardHeight(availableHeight, design),
+        display: "flex",
+        flexDirection: "column",
         border: `1.5px solid ${theme.resultsBorder}`,
         borderRadius: royal ? 8 : modern ? 12 : 10,
         overflow: "hidden",
@@ -1476,6 +1528,7 @@ function ResultsTable({
         dir="rtl"
         style={{
           display: "flex",
+          flexShrink: 0,
           alignItems: band ? "center" : "baseline",
           justifyContent: band ? "center" : "space-between",
           flexDirection: band ? "column" : undefined,
@@ -1511,6 +1564,9 @@ function ResultsTable({
           position: "relative",
           display: "grid",
           gridTemplateColumns: "96px 1fr",
+          gridTemplateRows: "auto repeat(4, minmax(auto, 1fr))",
+          flex: 1,
+          minHeight: 0,
           backgroundColor: theme.resultsCellBg,
         }}
       >
@@ -1572,11 +1628,18 @@ function ResultsTable({
               style={{
                 padding: "3px 12px 4px",
                 borderTop: `1px solid ${theme.resultsInnerBorder}`,
+                display: "flex",
+                flexDirection: "column",
               }}
             >
+              {/* خط نوشتن به کف خانه می چسبد — فضای بالای خط جای دست نوشتن است */}
               <div
                 aria-hidden
-                style={{ height: 12, borderBottom: `1.5px dotted ${theme.resultsDotted}` }}
+                style={{
+                  marginTop: "auto",
+                  height: 12,
+                  borderBottom: `1.5px dotted ${theme.resultsDotted}`,
+                }}
               />
             </div>
           </Fragment>
