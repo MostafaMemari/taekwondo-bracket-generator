@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { GroupDraw, Participant } from "../../core/types.ts";
 import {
@@ -1433,9 +1433,11 @@ function RoyalFrame() {
 
 /**
  * Hand-written final standings at the bottom of the sheet: 1st, 2nd and the
- * two shared 3rd places of a single-elimination draw. Deliberately compact —
- * a small 2×2 card in the middle, leaving the bracket the lion's share of the
- * page. Referees fill the dotted lines with a pen after the matches.
+ * two 3rd places of a single-elimination draw — shared 3rds, or 3rd/4th when
+ * the medal-rain ranking match exists. One tidy tabular block like the app's
+ * other tables: a «رتبه / نام و نام خانوادگی» header row, then a single row
+ * per rank with a dotted write-in line. Referees fill the lines with a pen
+ * after the matches.
  */
 function ResultsTable({
   withBronze,
@@ -1444,10 +1446,11 @@ function ResultsTable({
   withBronze: boolean;
   design?: SheetLayoutId;
 }) {
-  // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن
+  // باران مدال: مسابقه رده بندی رتبه ها را کامل می کند — ۱ تا ۴ بدون مشترک شدن؛
+  // حالت عادی: سومِ اولی «سوم» و دومی «سوم (مشترک)» — درخواست چاپ کاربر
   const ranks = withBronze
-    ? ["نفر اول", "نفر دوم", "نفر سوم", "نفر چهارم"]
-    : ["نفر اول", "نفر دوم", "نفر سوم (مشترک)", "نفر سوم (مشترک)"];
+    ? ["اول", "دوم", "سوم", "چهارم"]
+    : ["اول", "دوم", "سوم", "سوم (مشترک)"];
   const theme = useTableTheme();
   const modern = design === "modern";
   const royal = design === "royal";
@@ -1507,7 +1510,7 @@ function ResultsTable({
         style={{
           position: "relative",
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "96px 1fr",
           backgroundColor: theme.resultsCellBg,
         }}
       >
@@ -1519,33 +1522,64 @@ function ResultsTable({
             style={{ inset: 2.5, border: `1px solid ${theme.resultsInnerBorder}`, borderRadius: 4 }}
           />
         )}
+        {/* سرستون های جدول — همان حالت جدولی بقیه جدول های برنامه */}
+        <div
+          style={{
+            padding: "3px 8px",
+            textAlign: "center",
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: theme.resultsRankText,
+            letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
+            borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
+            borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
+          }}
+        >
+          رتبه
+        </div>
+        <div
+          style={{
+            padding: "3px 12px",
+            textAlign: "center",
+            fontSize: 9.5,
+            fontWeight: 700,
+            color: theme.resultsRankText,
+            letterSpacing: royal ? 1.5 : modern ? 1 : undefined,
+            borderBottom: `1.5px solid ${theme.resultsInnerBorder}`,
+          }}
+        >
+          نام و نام خانوادگی
+        </div>
         {ranks.map((rank, index) => (
-          <div
-            key={rank + index}
-            style={{
-              padding: band ? "4px 14px 7px" : "4px 12px 7px",
-              textAlign: band ? "center" : undefined,
-              borderTop: index >= 2 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
-              borderInlineEnd: index % 2 === 0 ? `1px solid ${theme.resultsInnerBorder}` : undefined,
-              backgroundColor: theme.resultsCellBg,
-            }}
-          >
-            <p
+          <Fragment key={`${rank}-${index}`}>
+            <div
               style={{
-                margin: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "3px 8px 4px",
                 fontSize: 10,
                 fontWeight: 700,
                 color: theme.resultsRankText,
                 whiteSpace: "nowrap",
+                borderTop: `1px solid ${theme.resultsInnerBorder}`,
+                borderInlineEnd: `1px solid ${theme.resultsInnerBorder}`,
               }}
             >
               {rank}
-            </p>
+            </div>
             <div
-              aria-hidden
-              style={{ marginTop: 6, height: 14, borderBottom: `1.5px dotted ${theme.resultsDotted}` }}
-            />
-          </div>
+              style={{
+                padding: "3px 12px 4px",
+                borderTop: `1px solid ${theme.resultsInnerBorder}`,
+              }}
+            >
+              <div
+                aria-hidden
+                style={{ height: 12, borderBottom: `1.5px dotted ${theme.resultsDotted}` }}
+              />
+            </div>
+          </Fragment>
         ))}
       </div>
     </div>

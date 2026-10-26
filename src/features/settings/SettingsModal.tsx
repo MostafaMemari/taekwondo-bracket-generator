@@ -567,7 +567,7 @@ function SettingsForm({
                       color: mockPlate.text,
                     }}
                   >
-                    {plateLabel.trim() || DEFAULT_CHAMPION_LABEL}
+                    {plateLabel.trim()}
                   </span>
                 ) : (
                   <span
@@ -684,8 +684,9 @@ function SettingsForm({
 
               <p className="rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
                 «همراه تم» پلاک را طلایی همیشگی نگه می دارد؛ رنگ دلخواه روی بوم قرعه، برگه چاپ و خروجی
-                عکس و PDF می نشیند و متن روشن یا تیره پلاک خودکار انتخاب می شود. متن خالی دوباره
-                «قهرمان» می شود.
+                عکس و PDF می نشیند و متن روشن یا تیره پلاک خودکار انتخاب می شود. متن خالی هم پذیرفته
+                می شود — پلاک بدون نوشته می ماند تا اسم قهرمان را بعدا همین جا یا با دست روی برگه
+                چاپی بنویسید.
                 <button
                   type="button"
                   onClick={() => {

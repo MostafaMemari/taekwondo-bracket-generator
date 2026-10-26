@@ -1276,10 +1276,12 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
 {
   const plate = await import('../src/lib/championPlate.ts')
   const classic = (await import('../src/lib/tableThemes.ts')).classicTheme
-  check('champion plate: label normalize trims, falls back and caps',
+  check('champion plate: label normalize trims, caps and ACCEPTS empty text',
     plate.normalizeChampionLabel('  نایب قهرمان  ') === 'نایب قهرمان' &&
-      plate.normalizeChampionLabel('   ') === plate.DEFAULT_CHAMPION_LABEL &&
+      plate.normalizeChampionLabel('') === '' &&
+      plate.normalizeChampionLabel('   ') === '' &&
       plate.normalizeChampionLabel(42) === plate.DEFAULT_CHAMPION_LABEL &&
+      plate.normalizeChampionLabel(undefined) === plate.DEFAULT_CHAMPION_LABEL &&
       plate.normalizeChampionLabel('x'.repeat(80)).length === 40,
   )
   check('champion plate: color normalize accepts hex and rejects junk',
@@ -1336,7 +1338,7 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
       return custom.championColor === '#dc2626' &&
         custom.championLabel === 'نایب قهرمان' &&
         junk.championColor === null &&
-        junk.championLabel === plate.DEFAULT_CHAMPION_LABEL &&
+        junk.championLabel === '' &&
         empty.championColor === null &&
         empty.championLabel === plate.DEFAULT_CHAMPION_LABEL
     })(),
