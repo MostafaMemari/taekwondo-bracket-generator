@@ -38,6 +38,7 @@ import {
   type ByePlacementId,
   type DrawTypeId,
 } from '../../lib/drawModes.ts'
+import { DEFAULT_CHAMPION_LABEL, championPlatePalette } from '../../lib/championPlate.ts'
 
 interface SettingsModalProps {
   open: boolean
@@ -80,6 +81,8 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   const matchChipStyle = useTournament((state) => state.matchChipStyle)
   const matchChipSize = useTournament((state) => state.matchChipSize)
   const showChampion = useTournament((state) => state.showChampion)
+  const championColor = useTournament((state) => state.championColor)
+  const championLabel = useTournament((state) => state.championLabel)
   const sheetLayout = useTournament((state) => state.sheetLayout)
   const drawTypeId = useTournament((state) => state.drawTypeId)
   const byePlacementId = useTournament((state) => state.byePlacementId)
@@ -88,12 +91,14 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   // keying the form by the meta snapshot resets local state on every open
   return (
     <SettingsForm
-      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${sheetLayout}|${drawTypeId}|${byePlacementId}|${byeMajorityId}`}
+      key={`${meta.title}|${meta.subtitle}|${meta.logoDataUrl ?? ''}|${meta.sheetTitleFormat}|${tableThemeId}|${JSON.stringify(matchChipStyle)}|${matchChipSize}|${showChampion}|${championColor ?? ''}|${championLabel}|${sheetLayout}|${drawTypeId}|${byePlacementId}|${byeMajorityId}`}
       initial={meta}
       initialThemeId={tableThemeId}
       initialChipStyle={matchChipStyle}
       initialChipSize={matchChipSize}
       initialShowChampion={showChampion}
+      initialChampionColor={championColor}
+      initialChampionLabel={championLabel}
       initialSheetLayout={sheetLayout}
       initialDrawTypeId={drawTypeId}
       initialByePlacementId={byePlacementId}
@@ -109,6 +114,8 @@ function SettingsForm({
   initialChipStyle,
   initialChipSize,
   initialShowChampion,
+  initialChampionColor,
+  initialChampionLabel,
   initialSheetLayout,
   initialDrawTypeId,
   initialByePlacementId,
@@ -120,6 +127,8 @@ function SettingsForm({
   initialChipStyle: ReturnType<typeof useTournament.getState>['matchChipStyle']
   initialChipSize: ReturnType<typeof useTournament.getState>['matchChipSize']
   initialShowChampion: boolean
+  initialChampionColor: string | null
+  initialChampionLabel: string
   initialSheetLayout: ReturnType<typeof useTournament.getState>['sheetLayout']
   initialDrawTypeId: ReturnType<typeof useTournament.getState>['drawTypeId']
   initialByePlacementId: ReturnType<typeof useTournament.getState>['byePlacementId']
@@ -131,6 +140,8 @@ function SettingsForm({
   const setMatchChipStyle = useTournament((state) => state.setMatchChipStyle)
   const setMatchChipSize = useTournament((state) => state.setMatchChipSize)
   const setShowChampion = useTournament((state) => state.setShowChampion)
+  const setChampionColor = useTournament((state) => state.setChampionColor)
+  const setChampionLabel = useTournament((state) => state.setChampionLabel)
   const setSheetLayout = useTournament((state) => state.setSheetLayout)
   const setDrawTypeId = useTournament((state) => state.setDrawTypeId)
   const setByePlacementId = useTournament((state) => state.setByePlacementId)
@@ -143,12 +154,16 @@ function SettingsForm({
   const [chipStyle, setChipStyle] = useState<MatchChipStyle>(initialChipStyle)
   const [chipSize, setChipSize] = useState<MatchChipSize>(normalizeMatchChipSize(initialChipSize))
   const [championVisible, setChampionVisible] = useState(initialShowChampion)
+  const [championColor, setPlateColor] = useState<string | null>(initialChampionColor)
+  const [plateLabel, setPlateLabel] = useState(initialChampionLabel)
   const [sheetLayoutId, setLayoutId] = useState<SheetLayoutId>(initialSheetLayout)
   const [drawType, setDrawType] = useState<DrawTypeId>(initialDrawTypeId)
   const [byePlacement, setByePlacement] = useState<ByePlacementId>(initialByePlacementId)
   const [byeMajority, setByeMajority] = useState<ByeMajorityId>(initialByeMajorityId)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // ماکت پلاک قهرمان — با تم انتخابی همین لحظه و رنگ دلخواه زنده رنگ می گیرد
+  const mockPlate = championPlatePalette(championColor, tableThemeById(tableThemeId))
 
   async function handleLogoFile(file: File) {
     setError('')
@@ -174,6 +189,8 @@ function SettingsForm({
     setMatchChipStyle(chipStyle)
     setMatchChipSize(chipSize)
     setShowChampion(championVisible)
+    setChampionColor(championColor)
+    setChampionLabel(plateLabel)
     setSheetLayout(sheetLayoutId)
     setDrawTypeId(drawType)
     setByePlacementId(byePlacement)
@@ -208,7 +225,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               عنوان مسابقات
-              <span className="ms-2 text-xs font-normal text-muted">سربرگ همه برگه های چاپی و نوار بالای برنامه</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">سربرگ همه برگه های چاپی و نوار بالای برنامه</span>
             </label>
             <input
               value={title}
@@ -221,7 +238,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               زیرعنوان
-              <span className="ms-2 text-xs font-normal text-muted">محل، تاریخ یا مرحله مسابقات</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">محل، تاریخ یا مرحله مسابقات</span>
             </label>
             <input
               value={subtitle}
@@ -234,7 +251,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               قالب عنوان وزن ها
-              <span className="ms-2 text-xs font-normal text-muted">
+              <span className="mt-0.5 block text-xs font-normal text-muted">
                 سربرگ برگه های چاپی و نام فایل خروجی ها با همین قالب ساخته می شود
               </span>
             </label>
@@ -255,7 +272,10 @@ function SettingsForm({
                   {variable}
                 </code>
               ))}
-              {' — '}خالی بگذارید تا پیش فرض «{SHEET_TITLE_DEFAULT_FORMAT}» استفاده شود.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              خالی بگذارید تا پیش فرض{' '}
+              <span className="whitespace-nowrap">«{SHEET_TITLE_DEFAULT_FORMAT}»</span> استفاده شود.
             </p>
             <p className="mt-2 rounded-lg bg-turf px-3 py-2 text-xs text-muted">
               پیش نمایش:{' '}
@@ -320,7 +340,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               نوع قرعه کشی
-              <span className="ms-2 text-xs font-normal text-muted">قانون چیدن هنرجوها روی برگه</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">قانون چیدن هنرجوها روی برگه</span>
             </label>
             <div className="grid grid-cols-2 gap-2.5">
               {drawTypes.map((mode) => (
@@ -347,7 +367,7 @@ function SettingsForm({
 
             <p className="mb-1.5 mt-3 text-xs font-medium text-ink-800">
               اکثریت استراحت ها
-              <span className="ms-2 text-xs font-normal text-muted">
+              <span className="mt-0.5 block text-xs font-normal text-muted">
                 در چیدمان «همیشه زیر اسم» — استراحت های اضافی بعد از چهارگوشه ها به این سمت می روند
               </span>
             </p>
@@ -375,7 +395,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               طرح برگه
-              <span className="ms-2 text-xs font-normal text-muted">ساختار سربرگ و جدول عوض می شود — تم های رنگی روی هر سه طرح می نشینند</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">ساختار سربرگ و جدول عوض می شود — تم های رنگی روی هر سه طرح می نشینند</span>
             </label>
             <div className="grid grid-cols-3 gap-2.5">
               {sheetLayouts.map((layout) => (
@@ -398,7 +418,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               تم جدول ها
-              <span className="ms-2 text-xs font-normal text-muted">فقط ظاهر برگه ها عوض می شود — نه داده ها و نه چیدمان</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">فقط ظاهر برگه ها عوض می شود — نه داده ها و نه چیدمان</span>
             </label>
             <div className="grid grid-cols-3 gap-2.5">
               {tableThemes.map((theme) => (
@@ -419,7 +439,7 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               ظاهر شماره مسابقه
-              <span className="ms-2 text-xs font-normal text-muted">فقط شکل و رنگ بج شماره ها عوض می شود</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">فقط شکل و رنگ بج شماره ها عوض می شود</span>
             </label>
             <div className="grid grid-cols-3 gap-2.5">
               {matchChipModes.map((mode) => (
@@ -533,18 +553,21 @@ function SettingsForm({
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink-800">
               نمایش پلاک قهرمان
-              <span className="ms-2 text-xs font-normal text-muted">پلاک «قهرمان» زیر فینال — بوم قرعه و همه خروجی ها</span>
+              <span className="mt-0.5 block text-xs font-normal text-muted">پلاک «قهرمان» زیر فینال — بوم قرعه و همه خروجی ها</span>
             </label>
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white px-4 py-3">
-              <div className="flex items-center gap-3">
-                {/* ماکت کوچک — روشن: پلاک طلایی؛ خاموش: جای خالی نقطه چین */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-line bg-white px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {/* ماکت کوچک — با رنگ و متن انتخابی همین لحظه رنگ می گیرد؛ خاموش: جای خالی نقطه چین */}
                 {championVisible ? (
                   <span
                     aria-hidden
-                    className="flex h-8 w-16 shrink-0 items-center justify-center rounded-lg font-display text-[11px] tracking-wider text-white"
-                    style={{ background: 'linear-gradient(135deg, #fbbf24, #d97706)' }}
+                    className="flex h-8 w-16 shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-lg px-1 font-display text-[11px] tracking-wider"
+                    style={{
+                      background: `linear-gradient(135deg, ${mockPlate.from}, ${mockPlate.to})`,
+                      color: mockPlate.text,
+                    }}
                   >
-                    قهرمان
+                    {plateLabel.trim() || DEFAULT_CHAMPION_LABEL}
                   </span>
                 ) : (
                   <span
@@ -583,6 +606,97 @@ function SettingsForm({
                   />
                 </button>
               </div>
+            </div>
+
+            <div className={`mt-3 space-y-3 ${championVisible ? '' : 'opacity-60'}`}>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-ink-800">متن پلاک</p>
+                <input
+                  value={plateLabel}
+                  onChange={(event) => setPlateLabel(event.target.value)}
+                  placeholder="مثلا: قهرمان"
+                  maxLength={40}
+                  className="w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-mat-600"
+                />
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-ink-800">رنگ پلاک</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPlateColor(null)}
+                    aria-pressed={championColor === null}
+                    title="پلاک طلایی همیشگی — رنگش از تم جدول می آید"
+                    className={`flex items-center gap-1.5 rounded-full border py-1 pe-3 ps-1 text-xs font-medium transition-colors ${
+                      championColor === null
+                        ? 'border-mat-600 bg-mat-50 text-ink-900 ring-2 ring-mat-600/25'
+                        : 'border-line text-muted hover:border-line-strong'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className="size-5 rounded-full"
+                      style={{
+                        background: `linear-gradient(135deg, ${classicTheme.championFrom}, ${classicTheme.championTo})`,
+                      }}
+                    />
+                    همراه تم
+                  </button>
+                  {matchChipPresetColors.map((preset) => (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() => setPlateColor(preset.value)}
+                      aria-pressed={championColor === preset.value}
+                      title={preset.name}
+                      aria-label={`رنگ ${preset.name}`}
+                      className={`size-6 rounded-full border border-black/10 transition-transform ${
+                        championColor === preset.value
+                          ? 'scale-110 ring-2 ring-mat-600/60 ring-offset-1'
+                          : 'hover:scale-110'
+                      }`}
+                      style={{ backgroundColor: preset.value }}
+                    />
+                  ))}
+                  <label
+                    title="رنگ دلخواه"
+                    className="flex cursor-pointer items-center gap-1.5 rounded-full border border-line py-1 pe-3 ps-1 text-xs font-medium text-muted transition-colors hover:border-line-strong"
+                  >
+                    <span
+                      aria-hidden
+                      className="size-5 rounded-full border border-black/10"
+                      style={{
+                        background:
+                          'conic-gradient(#ef4444, #f59e0b, #84cc16, #14b8a6, #3b82f6, #a855f7, #ef4444)',
+                      }}
+                    />
+                    دلخواه
+                    <input
+                      type="color"
+                      value={championColor ?? classicTheme.championTo}
+                      onChange={(event) => setPlateColor(event.target.value)}
+                      className="size-0 w-0 p-0 opacity-0"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <p className="rounded-lg bg-turf px-3 py-2 text-xs leading-5 text-muted">
+                «همراه تم» پلاک را طلایی همیشگی نگه می دارد؛ رنگ دلخواه روی بوم قرعه، برگه چاپ و خروجی
+                عکس و PDF می نشیند و متن روشن یا تیره پلاک خودکار انتخاب می شود. متن خالی دوباره
+                «قهرمان» می شود.
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlateColor(null)
+                    setPlateLabel(DEFAULT_CHAMPION_LABEL)
+                  }}
+                  className="ms-1 font-medium text-mat-700 underline decoration-dotted underline-offset-4 hover:text-mat-600"
+                >
+                  بازگشت به پیش فرض
+                </button>
+              </p>
             </div>
           </div>
 

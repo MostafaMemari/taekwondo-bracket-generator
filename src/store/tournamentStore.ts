@@ -26,6 +26,11 @@ import {
   type DrawTypeId,
 } from '../lib/drawModes.ts'
 import { normalizeSheetLayoutId, type SheetLayoutId } from '../lib/sheetLayouts.ts'
+import {
+  DEFAULT_CHAMPION_LABEL,
+  normalizeChampionColor,
+  normalizeChampionLabel,
+} from '../lib/championPlate.ts'
 import type {
   CategoryGroup,
   GroupDraw,
@@ -294,6 +299,19 @@ interface TournamentState {
   showChampion: boolean
   setShowChampion: (value: boolean) => void
   /**
+   * رنگ دلخواه پلاک قهرمان — #rrggbb؛ null یعنی همراه تم جدول (طلایی همیشگی).
+   * روی بوم قرعه، برگه چاپ و خروجی عکس/PDF می نشیند؛ انتخاب شخصی است و با
+   * ورود فهرست جدید عوض نمی شود.
+   */
+  championColor: string | null
+  setChampionColor: (color: string | null) => void
+  /**
+   * متن داخل پلاک قهرمان — پیش فرض «قهرمان»؛ خالی/خراب به همان پیش فرض
+   * برمی گردد. انتخاب شخصی است و با ورود فهرست جدید عوض نمی شود.
+   */
+  championLabel: string
+  setChampionLabel: (label: string) => void
+  /**
    * طرح برگه — کلاسیک (ظاهر همیشگی) یا مدرن (سربرگ ریبون دار و جدول با نوار
    * لبه بالا)؛ انتخاب شخصی است و با ورود فهرست جدید عوض نمی شود. تم های رنگی
    * روی هر دو طرح یک جا می نشینند — طرح ساختار است، تم رنگ.
@@ -382,9 +400,13 @@ export const useTournament = create<TournamentState>()(
       // اندازه شماره هم انتخاب شخصی است
       matchChipSize: defaultMatchChipSize,
       setMatchChipSize: (size) => set({ matchChipSize: normalizeMatchChipSize(size) }),
-      // پلاک قهرمان به طور پیش فرض روشن است
+      // پلاک قهرمان به طور پیش فرض روشن است — طلایی همراه تم و با متن همیشگی
       showChampion: true,
       setShowChampion: (value) => set({ showChampion: value }),
+      championColor: null,
+      setChampionColor: (color) => set({ championColor: normalizeChampionColor(color) }),
+      championLabel: DEFAULT_CHAMPION_LABEL,
+      setChampionLabel: (label) => set({ championLabel: normalizeChampionLabel(label) }),
       // طرح برگه پیش فرض کلاسیک است — ظاهر همیشگی دست نخورده می ماند
       sheetLayout: 'classic' as SheetLayoutId,
       setSheetLayout: (layout) => set({ sheetLayout: normalizeSheetLayoutId(layout) }),
@@ -1176,7 +1198,7 @@ export const useTournament = create<TournamentState>()(
     }),
     {
       name: 'kyorugi-draw-board-v1',
-      version: 19,
+      version: 20,
       migrate: (persisted) => {
         // pdfJob/imageJob of older versions collapse into the single exportJob
         const legacy = { ...(persisted ?? {}) } as Record<string, unknown>
@@ -1201,6 +1223,8 @@ export const useTournament = create<TournamentState>()(
         //           رفتار همیشگی شروع می کنند (جداسازی هم تیمی ها + آینه ای)
         //      v19: اکثریت استراحت ها (راست/چپ در چیدمان «همیشه زیر اسم») —
         //           ذخیره های قدیمی سمت راست شروع می کنند
+        //      v20: رنگ و متن دلخواه پلاک قهرمان — ذخیره های قدیمی طلایی همراه
+        //           تم با متن «قهرمان» شروع می کنند
         const participants: Participant[] = (state.participants ?? []).map((participant) => ({
           ...participant,
           weightKg: participant.weightKg ?? '',
@@ -1256,6 +1280,8 @@ export const useTournament = create<TournamentState>()(
           matchChipStyle: normalizeMatchChipStyle(state.matchChipStyle),
           matchChipSize: normalizeMatchChipSize(state.matchChipSize),
           showChampion: state.showChampion !== false,
+          championColor: normalizeChampionColor(state.championColor),
+          championLabel: normalizeChampionLabel(state.championLabel),
           sheetLayout: normalizeSheetLayoutId(state.sheetLayout),
           drawTypeId,
           byePlacementId,
@@ -1281,6 +1307,8 @@ export const useTournament = create<TournamentState>()(
         matchChipStyle: state.matchChipStyle,
         matchChipSize: state.matchChipSize,
         showChampion: state.showChampion,
+        championColor: state.championColor,
+        championLabel: state.championLabel,
         sheetLayout: state.sheetLayout,
         drawTypeId: state.drawTypeId,
         byePlacementId: state.byePlacementId,

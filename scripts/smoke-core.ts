@@ -1271,6 +1271,78 @@ check('champion toggle: store migration keeps the saved switch and defaults old 
   })(),
 )
 
+// ————— پلاک قهرمان — رنگ و متن دلخواه + مهاجرت v20 —————
+
+{
+  const plate = await import('../src/lib/championPlate.ts')
+  const classic = (await import('../src/lib/tableThemes.ts')).classicTheme
+  check('champion plate: label normalize trims, falls back and caps',
+    plate.normalizeChampionLabel('  نایب قهرمان  ') === 'نایب قهرمان' &&
+      plate.normalizeChampionLabel('   ') === plate.DEFAULT_CHAMPION_LABEL &&
+      plate.normalizeChampionLabel(42) === plate.DEFAULT_CHAMPION_LABEL &&
+      plate.normalizeChampionLabel('x'.repeat(80)).length === 40,
+  )
+  check('champion plate: color normalize accepts hex and rejects junk',
+    plate.normalizeChampionColor('#DC2626') === '#dc2626' &&
+      plate.normalizeChampionColor('red') === null &&
+      plate.normalizeChampionColor(undefined) === null,
+  )
+  const themed = plate.championPlatePalette(null, classic)
+  check('champion plate: null color follows the theme exactly',
+    themed.from === classic.championFrom &&
+      themed.to === classic.championTo &&
+      themed.text === classic.championText &&
+      themed.shadow === classic.championShadow,
+  )
+  const custom = plate.championPlatePalette('#2563eb', classic)
+  check('champion plate: custom color builds gradient, readable text and tinted shadow',
+    custom.from === '#2563eb' &&
+      custom.to !== custom.from &&
+      custom.to.startsWith('#') &&
+      (custom.text === '#ffffff' || custom.text === '#101d31') &&
+      custom.shadow === '0 2px 8px #2563eb59',
+  )
+  check('champion plate: store migration normalizes color/label and defaults old saves',
+    await (async () => {
+      if (typeof globalThis.localStorage === 'undefined') {
+        const memory = new Map<string, string>()
+        const memoryStorage = {
+          getItem: (key: string) => memory.get(key) ?? null,
+          setItem: (key: string, value: string) => void memory.set(key, value),
+          removeItem: (key: string) => void memory.delete(key),
+        }
+        Object.defineProperty(globalThis, 'localStorage', { value: memoryStorage })
+        ;(globalThis as Record<string, unknown>).window = { localStorage: memoryStorage }
+      }
+      const { useTournament } = await import('../src/store/tournamentStore.ts')
+      const migrate = (
+        useTournament as unknown as {
+          persist?: { getOptions?: () => { migrate?: (state: unknown) => unknown } }
+        }
+      ).persist?.getOptions?.()?.migrate
+      if (typeof migrate !== 'function') return false
+      const custom = migrate({ championColor: '#DC2626', championLabel: ' نایب قهرمان ' }) as {
+        championColor?: string | null
+        championLabel?: string
+      }
+      const junk = migrate({ championColor: 'junk', championLabel: '   ' }) as {
+        championColor?: string | null
+        championLabel?: string
+      }
+      const empty = migrate({}) as {
+        championColor?: string | null
+        championLabel?: string
+      }
+      return custom.championColor === '#dc2626' &&
+        custom.championLabel === 'نایب قهرمان' &&
+        junk.championColor === null &&
+        junk.championLabel === plate.DEFAULT_CHAMPION_LABEL &&
+        empty.championColor === null &&
+        empty.championLabel === plate.DEFAULT_CHAMPION_LABEL
+    })(),
+  )
+}
+
 // ————— طرح برگه (کلاسیک/مدرن/تشریفاتی) — منبع حقیقت + مهاجرت v17 —————
 
 {

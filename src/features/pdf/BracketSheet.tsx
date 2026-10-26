@@ -17,6 +17,7 @@ import {
 import type { TournamentMeta } from "../../store/tournamentStore.ts";
 import { useTournament } from "../../store/tournamentStore.ts";
 import { renderWeightTitle, toFaDigits } from "../../lib/formatFa.ts";
+import { championPlatePalette } from "../../lib/championPlate.ts";
 import {
   matchChipFactor,
   matchChipPalette,
@@ -128,8 +129,12 @@ export function BracketSheet({
   // اندازه بج شماره — ضریب روی اندازه پایه چیدمان
   const matchChipSize = useTournament((state) => state.matchChipSize);
   const chipScale = matchChipFactor(matchChipSize);
-  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
+  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود؛ رنگ و متن دلخواه هم از تنظیمات
   const showChampion = useTournament((state) => state.showChampion);
+  const championColor = useTournament((state) => state.championColor);
+  const championLabel = useTournament((state) => state.championLabel);
+  // رنگ نهایی پلاک — همراه تم یا رنگ دلخواه با متن خودکار روشن/تیره
+  const plate = championPlatePalette(championColor, theme);
   // طرح برگه — کلاسیک (ظاهر همیشگی)، مدرن (ریبون و پیل) یا تشریفاتی (قاب سند قهرمانی)
   const sheetLayout = useTournament((state) => state.sheetLayout);
   const modern = sheetLayout === "modern";
@@ -997,19 +1002,22 @@ export function BracketSheet({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: `linear-gradient(135deg, ${theme.championFrom}, ${theme.championTo})`,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                padding: "0 6px",
+                background: `linear-gradient(135deg, ${plate.from}, ${plate.to})`,
                 borderRadius: modern || royal ? 999 : 10,
-                color: theme.championText,
+                color: plate.text,
                 fontFamily: "Lalezar, Vazirmatn, sans-serif",
                 fontSize: modern || royal ? 20 : 22,
                 letterSpacing: modern || royal ? 3 : 1.5,
-                border: royal ? `2px solid ${theme.championText}` : undefined,
+                border: royal ? `2px solid ${plate.text}` : undefined,
                 gap: royal ? 10 : undefined,
                 boxShadow: modern
-                  ? `inset 0 0 0 2.5px rgba(255, 255, 255, 0.4), ${theme.championShadow}`
+                  ? `inset 0 0 0 2.5px rgba(255, 255, 255, 0.4), ${plate.shadow}`
                   : royal
-                    ? `inset 0 0 0 2px rgba(255, 255, 255, 0.45), ${theme.championShadow}`
-                    : theme.championShadow,
+                    ? `inset 0 0 0 2px rgba(255, 255, 255, 0.45), ${plate.shadow}`
+                    : plate.shadow,
               }}
             >
               {royal ? (
@@ -1020,24 +1028,24 @@ export function BracketSheet({
                       display: "inline-block",
                       width: 6,
                       height: 6,
-                      backgroundColor: theme.championText,
+                      backgroundColor: plate.text,
                       transform: "rotate(45deg)",
                     }}
                   />
-                  قهرمان
+                  {championLabel}
                   <span
                     aria-hidden
                     style={{
                       display: "inline-block",
                       width: 6,
                       height: 6,
-                      backgroundColor: theme.championText,
+                      backgroundColor: plate.text,
                       transform: "rotate(45deg)",
                     }}
                   />
                 </>
               ) : (
-                "قهرمان"
+                championLabel
               )}
             </div>
           )}

@@ -32,6 +32,7 @@ import {
   matchChipRadius,
 } from "../../lib/matchChipStyles.ts";
 import { classicTheme } from "../../lib/tableThemes.ts";
+import { championPlatePalette } from "../../lib/championPlate.ts";
 import { roundLabel } from "../../lib/roundLabels.ts";
 import { FitText } from "../../components/FitText.tsx";
 import { MatchBox } from "./MatchBox.tsx";
@@ -109,8 +110,12 @@ export function BracketCanvas({
     return byId;
   }, [participants]);
 
-  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود
+  // پلاک «قهرمان» زیر فینال — از تنظیمات فعال/غیرفعال می شود؛ رنگ و متن دلخواه هم از تنظیمات
   const showChampion = useTournament((state) => state.showChampion);
+  const championColor = useTournament((state) => state.championColor);
+  const championLabel = useTournament((state) => state.championLabel);
+  // رنگ پلاک — بوم provider تم ندارد؛ همراه تم یعنی طلایی کلاسیک همیشگی
+  const plate = championPlatePalette(championColor, classicTheme);
 
   const layout = useMemo(
     () => computeBracketLayout(draw.structure, dims, { showChampion }),
@@ -286,20 +291,20 @@ export function BracketCanvas({
           {layout.champion && (
             <div
               dir="rtl"
-              className="absolute flex items-center justify-center rounded-xl font-display"
+              className="absolute flex items-center justify-center overflow-hidden whitespace-nowrap rounded-xl px-2 font-display"
               style={{
                 left: layout.champion.x,
                 top: layout.champion.y,
                 width: layout.champion.width,
                 height: layout.champion.height,
-                background: "linear-gradient(135deg, #fbbf24, #d97706)",
-                color: "#ffffff",
+                background: `linear-gradient(135deg, ${plate.from}, ${plate.to})`,
+                color: plate.text,
                 fontSize: 19,
                 letterSpacing: 1,
-                boxShadow: "0 2px 8px rgba(180, 83, 9, 0.35)",
+                boxShadow: plate.shadow,
               }}
             >
-              قهرمان
+              {championLabel}
             </div>
           )}
 
