@@ -22,15 +22,15 @@ export function RosterPreviewTable({ participants, issues }: RosterPreviewTableP
         </p>
       </div>
       <div className="max-h-96 overflow-auto">
-        <table className="w-full text-right text-sm">
+        <table className="w-full min-w-[640px] text-right text-sm">
           <thead className="sticky top-0 bg-turf text-xs text-muted">
             <tr>
-              <th className="px-4 py-2.5 font-medium">ردیف اکسل</th>
-              <th className="px-4 py-2.5 font-medium">نام و نام خانوادگی</th>
-              <th className="px-4 py-2.5 font-medium">مربی</th>
-              <th className="px-4 py-2.5 font-medium">رده سنی</th>
-              <th className="px-4 py-2.5 font-medium">وزن</th>
-              <th className="px-4 py-2.5 font-medium">وزن (kg)</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">ردیف اکسل</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">نام و نام خانوادگی</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">مربی</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">رده سنی</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">وزن</th>
+              <th className="whitespace-nowrap px-4 py-2.5 font-medium">وزن (kg)</th>
             </tr>
           </thead>
           <tbody>

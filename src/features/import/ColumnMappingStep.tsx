@@ -126,7 +126,7 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
           <p className="text-sm text-muted">{toFaDigits(previewRowCount)} ردیف نخست</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+          <table className="w-full min-w-[680px] text-right text-sm">
             <thead className="bg-turf text-xs text-muted">
               <tr>
                 <th className="px-4 py-2.5 font-medium">ردیف اکسل</th>
@@ -169,7 +169,7 @@ export function ColumnMappingStep({ matrix, fileName, onCancel, onConfirm }: Col
         </p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button onClick={confirm} disabled={!complete}>
           تأیید و پردازش فایل
         </Button>

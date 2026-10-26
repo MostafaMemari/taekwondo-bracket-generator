@@ -29,7 +29,7 @@ export function FileDropzone({ onFile }: FileDropzoneProps) {
         const file = event.dataTransfer.files[0]
         if (file) onFile(file)
       }}
-      className={`flex cursor-pointer flex-col items-center gap-4 rounded-2xl border-2 border-dashed px-10 py-16 text-center transition-colors duration-150 ${
+      className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-5 py-10 text-center transition-colors duration-150 sm:gap-4 sm:px-10 sm:py-16 ${
         isOver ? 'border-mat-600 bg-mat-50' : 'border-line-strong bg-surface hover:border-mat-600'
       }`}
     >
